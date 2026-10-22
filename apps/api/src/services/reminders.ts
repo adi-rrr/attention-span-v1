@@ -1,6 +1,7 @@
 import type { QueryFn } from "../db.js";
 import { query } from "../db.js";
 import { httpError } from "../httpError.js";
+import { scheduleReminderPush } from "./push.js";
 
 export type ReminderRow = {
   id: string;
@@ -81,7 +82,12 @@ export async function upsertReminder(
       input.delivery ?? "in_app",
     ],
   );
-  return rows[0]!;
+  const reminder = rows[0]!;
+  // Hosted web app: queue the push for fire time. Off without QStash env.
+  await scheduleReminderPush(reminder).catch((err) => {
+    console.error("Could not schedule reminder push", err);
+  });
+  return reminder;
 }
 
 export async function cancelReminder(

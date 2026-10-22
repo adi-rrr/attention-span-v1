@@ -19,3 +19,8 @@ dist/
 *.p8
 *.p12
 *.mobileprovision
+
+# Vercel
+.vercel/
+.vercel
+.env*

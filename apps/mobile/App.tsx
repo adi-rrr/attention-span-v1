@@ -1,7 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
-import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,12 +23,14 @@ import { DuplicateSaveModal } from "./src/components/DuplicateSaveModal";
 import { useShareHandoff } from "./src/share/useShareHandoff";
 import { parseSaveDeepLink } from "./src/share/platform";
 import {
-  saveIdFromNotificationData,
-  setupNotificationHandler,
-} from "./src/reminders/notifications";
+  initReminderNotifications,
+  listenForReminderTaps,
+} from "./src/reminders/listen";
+import { onPasscodeRequired, setPasscode } from "./src/passcode";
+import { PasscodeScreen } from "./src/PasscodeScreen";
 import type { Save } from "./src/types";
 
-setupNotificationHandler();
+initReminderNotifications();
 
 type Tab = "inbox" | "library" | "search" | "map";
 
@@ -50,6 +51,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [activeSave, setActiveSave] = useState<Save | null>(null);
   const [detailSaveId, setDetailSaveId] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
+
+  useEffect(() => onPasscodeRequired(() => setLocked(true)), []);
 
   const openUnderstand = useCallback((save: Save) => {
     setActiveSave(save);
@@ -99,29 +103,11 @@ export default function App() {
       if (url) handleUrl(url);
     });
     const linkSub = Linking.addEventListener("url", ({ url }) => handleUrl(url));
-
-    const notifSub = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const saveId = saveIdFromNotificationData(
-          response.notification.request.content.data,
-        );
-        if (saveId) openFromReminder(saveId);
-      },
-    );
-
-    void Notifications.getLastNotificationResponseAsync().then((response) => {
-      const saveId = saveIdFromNotificationData(
-        response?.notification.request.content.data,
-      );
-      if (saveId) {
-        Notifications.clearLastNotificationResponse();
-        openFromReminder(saveId);
-      }
-    });
+    const stopReminderTaps = listenForReminderTaps(openFromReminder);
 
     return () => {
       linkSub.remove();
-      notifSub.remove();
+      stopReminderTaps();
     };
   }, []);
 
@@ -147,6 +133,21 @@ export default function App() {
 
   if (!fontsLoaded) {
     return <View style={styles.safe} />;
+  }
+
+  if (locked) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <PasscodeScreen
+          onSubmit={(code) => {
+            setPasscode(code);
+            setLocked(false);
+            void refresh();
+          }}
+        />
+        <StatusBar style="dark" />
+      </SafeAreaView>
+    );
   }
 
   if (activeSave) {

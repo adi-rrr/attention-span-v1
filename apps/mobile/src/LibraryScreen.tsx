@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
 } from "react-native";
 import { Text } from "./theme";
 import { api } from "./api";
+import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
 import { ActionSheet } from "./components/ActionSheet";
 import { FolderPickerModal } from "./components/FolderPickerModal";
@@ -173,17 +173,11 @@ export function LibraryScreen({ onOpenSave }: Props) {
   }
 
   function confirmDeleteFolder(folder: Folder) {
-    Alert.alert(
+    confirmDestructive(
       `Delete ${folder.name}?`,
       "This deletes the folder, every subfolder, and every save inside. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete everything",
-          style: "destructive",
-          onPress: () => void deleteFolder(folder),
-        },
-      ],
+      "Delete everything",
+      () => void deleteFolder(folder),
     );
   }
 
@@ -228,14 +222,12 @@ export function LibraryScreen({ onOpenSave }: Props) {
   }
 
   function confirmDeleteSave(save: Save) {
-    Alert.alert("Delete this save?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => void deleteSave(save),
-      },
-    ]);
+    confirmDestructive(
+      "Delete this save?",
+      "This cannot be undone.",
+      "Delete",
+      () => void deleteSave(save),
+    );
   }
 
   async function deleteSave(save: Save) {

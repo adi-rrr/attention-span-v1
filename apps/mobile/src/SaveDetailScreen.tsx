@@ -2,7 +2,6 @@ import * as Linking from "expo-linking";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from "react-native";
 import { Text, TextInput, shadow } from "./theme";
 import { api } from "./api";
+import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
 import { FolderPickerModal } from "./components/FolderPickerModal";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
@@ -72,12 +72,11 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
   }
 
   function confirmDelete() {
-    Alert.alert("Delete this save?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
+    confirmDestructive(
+      "Delete this save?",
+      "This cannot be undone.",
+      "Delete",
+      () => {
           void (async () => {
             setBusy(true);
             try {
@@ -89,9 +88,8 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
               setBusy(false);
             }
           })();
-        },
       },
-    ]);
+    );
   }
 
   if (loading) {

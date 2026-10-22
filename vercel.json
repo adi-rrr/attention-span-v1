@@ -1,7 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "echo 'static site: nothing to install'",
-  "buildCommand": "echo 'static site: nothing to build'",
-  "outputDirectory": "apps/web"
+  "installCommand": "npm install",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "apps/mobile/dist",
+  "rewrites": [{ "source": "/api/(.*)", "destination": "/api" }],
+  "functions": {
+    "api/index.ts": { "maxDuration": 30 }
+  }
 }

@@ -1,4 +1,11 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
+import { Platform } from "react-native";
+import { getPasscode, notifyPasscodeRequired } from "./passcode";
+
+// The hosted web app serves the API from the same site under /api.
+const API_URL =
+  Platform.OS === "web"
+    ? (process.env.EXPO_PUBLIC_WEB_API_URL ?? "/api")
+    : (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001");
 
 /** Dev stub: send x-user-id until JWT auth is wired (P0). */
 const DEV_USER_ID =
@@ -28,11 +35,13 @@ export async function api<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const hasBody = init.body != null && init.body !== "";
+  const passcode = getPasscode();
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
       "x-user-id": DEV_USER_ID,
+      ...(passcode ? { "x-passcode": passcode } : {}),
       ...(init.headers ?? {}),
     },
   });
@@ -44,6 +53,14 @@ export async function api<T>(
       body = JSON.parse(raw);
     } catch {
       /* keep raw text */
+    }
+    if (
+      res.status === 401 &&
+      typeof body === "object" &&
+      body !== null &&
+      (body as { code?: unknown }).code === "PASSCODE_REQUIRED"
+    ) {
+      notifyPasscodeRequired();
     }
     throw new ApiError(res.status, path, body);
   }
