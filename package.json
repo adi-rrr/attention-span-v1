@@ -1,0 +1,13 @@
+{
+  "name": "attention-span",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/mobile"
+  ],
+  "scripts": {
+    "api": "npm run dev -w apps/api",
+    "mobile": "npm run start -w apps/mobile",
+    "db:migrate": "psql \"$DATABASE_URL\" -f db/migrations/001_init.sql"
+  }
+}
