@@ -21,15 +21,37 @@ if (missing.length) {
   process.exit(1);
 }
 
+console.log(`Uploading ${entries.length} settings from ${process.cwd()} …`);
+
 for (const [key, value] of entries) {
   // Replace any old value so re-running the script is safe.
   spawnSync("npx", ["vercel", "env", "rm", key, "production", "--yes"], {
     stdio: "ignore",
   });
-  const added = spawnSync("npx", ["vercel", "env", "add", key, "production"], {
+  spawnSync("npx", ["vercel", "env", "add", key, "production"], {
     input: value,
-    stdio: ["pipe", "ignore", "inherit"],
+    stdio: ["pipe", "ignore", "ignore"],
   });
-  console.log(`${added.status === 0 ? "✓" : "✗"} ${key}`);
-  if (added.status !== 0) process.exitCode = 1;
+}
+
+// Trust Vercel's own list, not the exit codes: show what actually arrived.
+const listed = spawnSync(
+  "npx",
+  ["vercel", "env", "ls", "--environment", "production"],
+  { encoding: "utf8" },
+);
+const names = new Set(
+  `${listed.stdout}\n${listed.stderr}`
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/)[0]),
+);
+for (const [key] of entries) {
+  const ok = names.has(key);
+  console.log(`${ok ? "✓" : "✗"} ${key}`);
+  if (!ok) process.exitCode = 1;
+}
+if (process.exitCode) {
+  console.error(
+    "\nSome settings are missing. Run this from the project folder (where .vercel/ is) and make sure `npx vercel whoami` shows your account.",
+  );
 }
