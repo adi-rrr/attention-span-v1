@@ -121,6 +121,10 @@ async function resolveUser(sub: string, email: string | null): Promise<string> {
 
 /** The calling user's id, or null in dev mode when no user header was sent. */
 export async function authenticate(req: FastifyRequest): Promise<string | null> {
+  // Never fall back to the trust-the-header dev mode on the hosted app.
+  if (authMode() === "dev" && process.env.VERCEL) {
+    throw authError(503, "AUTH_NOT_CONFIGURED", "Sign-in isn't set up on the server yet.");
+  }
   if (authMode() === "dev") {
     const stub = req.headers["x-user-id"];
     return typeof stub === "string" && stub.length > 0 ? stub : null;
