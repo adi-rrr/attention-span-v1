@@ -1,21 +1,23 @@
+import * as Linking from "expo-linking";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   View,
 } from "react-native";
 import { api } from "./api";
 import { FolderDropdown } from "./components/FolderTreePicker";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import {
-  draftKeep,
+  draftPlan,
   fadeInfo,
   keepSave,
   letGo,
   markDone,
-  saveMetaLine,
+  platformLabel,
 } from "./lifecycle";
 import {
   defaultReminderDate,
@@ -142,19 +144,22 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
 
         <View style={styles.card}>
           <View style={styles.bigThumb} />
-          <Text style={styles.meta}>
-            {saveMetaLine(save)}
-          </Text>
+          <Text style={styles.meta}>{platformLabel(save.platform)}</Text>
           <Text style={styles.title}>{displayTitle(save)}</Text>
-          {save.ai_reason ? (
-            <View style={styles.guess}>
-              <Text style={styles.guessLabel}>Looks like</Text>
-              <Text style={styles.guessText}>{save.ai_reason}</Text>
-            </View>
-          ) : null}
-          <Text style={[styles.fade, fade.urgent && styles.fadeUrgent]}>
-            {fade.label}
-          </Text>
+          <View style={styles.cardFoot}>
+            <Text style={[styles.fade, fade.urgent && styles.fadeUrgent]}>
+              {fade.label}
+            </Text>
+            {save.source_url ? (
+              <Pressable
+                style={styles.openBtn}
+                onPress={() => void Linking.openURL(save.source_url!)}
+                accessibilityLabel="Open the original post"
+              >
+                <Text style={styles.openBtnText}>Open post ↗</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -218,10 +223,12 @@ function KeepStep({
   onKept: () => void;
 }) {
   const isPlan = mode === "plan";
-  const [loading, setLoading] = useState(true);
+  // Only plans get an AI draft; a takeaway is the user's own conclusion.
+  const [loading, setLoading] = useState(isPlan);
   const [question, setQuestion] = useState(
-    isPlan ? "What's the next step, and when?" : "What do you want to remember?",
+    isPlan ? "What's the next step, and when?" : "What will you take from this?",
   );
+  const [keepLink, setKeepLink] = useState(true);
   const [text, setText] = useState("");
   const [when, setWhen] = useState<Date>(defaultReminderDate());
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -233,24 +240,26 @@ function KeepStep({
 
   useEffect(() => {
     let alive = true;
-    void draftKeep(save.id, mode, deviceTimezone())
-      .then((d) => {
-        if (!alive) return;
-        setQuestion(d.question);
-        setText(d.draft);
-        if (d.suggested_at) setWhen(new Date(d.suggested_at));
-      })
-      .catch(() => {
-        /* No draft: the user writes it themselves. */
-      })
-      .finally(() => alive && setLoading(false));
+    if (isPlan) {
+      void draftPlan(save.id, deviceTimezone())
+        .then((d) => {
+          if (!alive) return;
+          setQuestion(d.question);
+          setText(d.draft);
+          if (d.suggested_at) setWhen(new Date(d.suggested_at));
+        })
+        .catch(() => {
+          /* No draft: the user writes it themselves. */
+        })
+        .finally(() => alive && setLoading(false));
+    }
     void api<{ items: Folder[] }>("/folders")
       .then((r) => alive && setFolders(r.items))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [save.id, mode]);
+  }, [save.id, isPlan]);
 
   async function createFolder(name: string, parentId: string | null) {
     const folder = await api<Folder>("/folders", {
@@ -271,7 +280,7 @@ function KeepStep({
         mode,
         ...(isPlan
           ? { plan_text: value, plan_at: when.toISOString() }
-          : { takeaway: value }),
+          : { takeaway: value, keep_link: keepLink }),
         folder_id: folderId,
         timezone: deviceTimezone(),
       });
@@ -314,6 +323,9 @@ function KeepStep({
             <Text style={styles.tagText}>{isPlan ? "Next step" : "Takeaway"}</Text>
           </View>
           <Text style={styles.question}>{question}</Text>
+          {!isPlan ? (
+            <Text style={styles.hint}>In your own words, the one thing worth keeping.</Text>
+          ) : null}
           {loading ? (
             <View style={styles.drafting}>
               <ActivityIndicator color={colors.accent} />
@@ -325,11 +337,31 @@ function KeepStep({
               multiline
               value={text}
               onChangeText={setText}
-              placeholder={isPlan ? "e.g. Cook it on Sunday" : "The one thing to remember…"}
+              placeholder={isPlan ? "e.g. Cook it on Sunday" : "What stuck with you…"}
               accessibilityLabel={isPlan ? "Next step" : "Takeaway"}
             />
           )}
         </View>
+
+        {!isPlan && save.source_url ? (
+          <View style={styles.whenCard}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.whenValueSmall}>Keep the link to the original</Text>
+              <Text style={styles.whenLabel}>
+                {keepLink
+                  ? "You can reopen the post from your journal."
+                  : "Only your takeaway stays. The post's link is dropped."}
+              </Text>
+            </View>
+            <Switch
+              value={keepLink}
+              onValueChange={setKeepLink}
+              trackColor={{ true: colors.accent, false: colors.border }}
+              thumbColor="#FFFFFF"
+              accessibilityLabel="Keep the link to the original"
+            />
+          </View>
+        ) : null}
 
         {isPlan ? (
           <View style={styles.whenCard}>
@@ -443,15 +475,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
     color: colors.ink,
   },
-  guess: {
+  cardFoot: {
     marginTop: 14,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: colors.accentTint,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
   },
-  guessLabel: { fontSize: 12, fontWeight: "700", color: colors.accentText },
-  guessText: { marginTop: 2, fontSize: 15, lineHeight: 21, color: colors.ink },
-  fade: { marginTop: 12, fontSize: 13, fontWeight: "600", color: colors.muted },
+  openBtn: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: colors.accentTint,
+    justifyContent: "center",
+  },
+  openBtnText: { fontSize: 14, fontWeight: "700", color: colors.accentText },
+  hint: { marginTop: 6, fontSize: 14, lineHeight: 20, color: colors.muted },
+  whenValueSmall: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  fade: { fontSize: 13, fontWeight: "600", color: colors.muted },
   fadeUrgent: { color: "#B54A24" },
   choiceGrid: {
     marginTop: 18,

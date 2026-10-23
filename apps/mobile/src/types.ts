@@ -60,14 +60,21 @@ export type InboxSummary = {
   digest_hour: number;
 };
 
+export type MirrorDay = { day: string; acted: boolean; faded: boolean };
+
 export type Mirror = {
+  timezone: string;
+  /** "YYYY-MM-DD" in the user's timezone. */
   month_start: string;
+  today: string;
   saved: number;
+  acted: number;
   done: number;
   planned: number;
   distilled: number;
   let_go: number;
   faded: number;
+  days: MirrorDay[];
   shelf_used: number;
   shelf_limit: number;
   inbox: InboxSummary;

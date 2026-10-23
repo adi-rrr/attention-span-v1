@@ -5,11 +5,7 @@ import { query } from "../db.js";
 import { httpError } from "../httpError.js";
 import { resolvePreview } from "../services/preview.js";
 import { cancelReminder } from "../services/reminders.js";
-import {
-  getLifecycleSettings,
-  logSaveEvent,
-  triageSave,
-} from "../services/lifecycle.js";
+import { getLifecycleSettings, logSaveEvent } from "../services/lifecycle.js";
 
 const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, user_note,
               folder_id, folder_path, content_kind, offline_policy,
@@ -160,10 +156,6 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
       ],
     );
     await logSaveEvent(userId, "saved", body.platform);
-
-    // The AI's guess at why it was saved. Don't hold up the share for it;
-    // GET /inbox fills in any guess that didn't finish here.
-    void triageSave(userId, id);
 
     return reply.code(201).send(rows[0]);
   });

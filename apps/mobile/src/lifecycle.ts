@@ -1,12 +1,5 @@
 import { api } from "./api";
-import type {
-  InboxSummary,
-  Intent,
-  KeepDraft,
-  KeepMode,
-  Mirror,
-  Save,
-} from "./types";
+import type { InboxSummary, KeepDraft, KeepMode, Mirror, Save } from "./types";
 
 export function fetchInbox() {
   return api<{ items: Save[]; summary: InboxSummary }>("/inbox");
@@ -22,10 +15,11 @@ export function letGo(saveId: string) {
   return api<void>(`/saves/${saveId}/let-go`, { method: "POST" });
 }
 
-export function draftKeep(saveId: string, mode: KeepMode, timezone: string) {
-  return api<KeepDraft>(`/saves/${saveId}/keep/draft`, {
+/** AI starting point for "Plan it". Takeaways are always the user's own words. */
+export function draftPlan(saveId: string, timezone: string) {
+  return api<KeepDraft>(`/saves/${saveId}/plan/draft`, {
     method: "POST",
-    body: JSON.stringify({ mode, timezone }),
+    body: JSON.stringify({ timezone }),
   });
 }
 
@@ -38,6 +32,7 @@ export function keepSave(
     takeaway?: string;
     folder_id?: string | null;
     timezone?: string;
+    keep_link?: boolean;
   },
 ) {
   return api<Save>(`/saves/${saveId}/keep`, {
@@ -50,8 +45,8 @@ export function fetchJournal() {
   return api<{ items: Save[] }>("/journal");
 }
 
-export function fetchMirror() {
-  return api<Mirror>("/mirror");
+export function fetchMirror(timezone: string) {
+  return api<Mirror>(`/mirror?tz=${encodeURIComponent(timezone)}`);
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -62,22 +57,10 @@ const PLATFORM_LABEL: Record<string, string> = {
   screenshot: "Screenshot",
 };
 
-/** "Instagram · Go there" — the small line above a save's title. */
-export function saveMetaLine(save: Pick<Save, "platform" | "ai_intent">): string {
-  const platform = PLATFORM_LABEL[save.platform] ?? save.platform;
-  return save.ai_intent && save.ai_intent !== "other"
-    ? `${platform} · ${INTENT_LABEL[save.ai_intent]}`
-    : platform;
+/** "Instagram" — the small line above a save's title. */
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABEL[platform] ?? platform;
 }
-
-export const INTENT_LABEL: Record<Intent, string> = {
-  try: "Try it",
-  go: "Go there",
-  buy: "Buy it",
-  learn: "Learn it",
-  inspo: "Inspo",
-  other: "Saved",
-};
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

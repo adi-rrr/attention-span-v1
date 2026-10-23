@@ -38,9 +38,9 @@ type Tab = "inbox" | "library" | "journal" | "mirror" | "search";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "inbox", label: "Inbox" },
+  { id: "mirror", label: "Mirror" },
   { id: "library", label: "Kept" },
   { id: "journal", label: "Journal" },
-  { id: "mirror", label: "Mirror" },
   { id: "search", label: "Search" },
 ];
 

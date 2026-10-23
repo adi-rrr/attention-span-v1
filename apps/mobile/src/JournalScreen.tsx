@@ -70,12 +70,14 @@ export function JournalScreen() {
       {items.map((s) => (
         <View key={s.id} style={styles.card}>
           <Text style={styles.takeaway}>“{s.takeaway}”</Text>
-          <View style={styles.sourceRow}>
-            <View style={styles.dot} />
-            <Text style={styles.source} numberOfLines={1}>
-              {displayTitle(s)}
-            </Text>
-          </View>
+          {s.title || s.source_url ? (
+            <View style={styles.sourceRow}>
+              <View style={styles.dot} />
+              <Text style={styles.source} numberOfLines={1}>
+                {displayTitle(s)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.actions}>
             {s.source_url ? (
               <Pressable

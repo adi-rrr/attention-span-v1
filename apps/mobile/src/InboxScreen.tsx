@@ -1,3 +1,4 @@
+import * as Linking from "expo-linking";
 import {
   ActivityIndicator,
   Pressable,
@@ -6,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { fadeInfo, fadeOpacity, saveMetaLine } from "./lifecycle";
+import { fadeInfo, fadeOpacity, platformLabel } from "./lifecycle";
 import { displayTitle } from "./text";
 import { Text, colors, shadow } from "./theme";
 import type { InboxSummary, Save } from "./types";
@@ -75,18 +76,13 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
               <View style={styles.thumb} />
               <View style={styles.cardBody}>
                 <Text style={styles.meta}>
-                  {saveMetaLine(s)}
+                  {platformLabel(s.platform)}
                 </Text>
                 <Text style={styles.title} numberOfLines={2}>
                   {displayTitle(s)}
                 </Text>
               </View>
             </View>
-            {s.ai_reason ? (
-              <Text style={styles.guess} numberOfLines={2}>
-                {s.ai_reason}
-              </Text>
-            ) : null}
             <View style={styles.lifeRow}>
               <View style={styles.lifeTrack}>
                 <View
@@ -100,6 +96,16 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
               <Text style={[styles.lifeLabel, fade.urgent && styles.lifeLabelUrgent]}>
                 {fade.label}
               </Text>
+              {s.source_url ? (
+                <Pressable
+                  style={styles.openBtn}
+                  hitSlop={6}
+                  onPress={() => void Linking.openURL(s.source_url!)}
+                  accessibilityLabel="Open the original post"
+                >
+                  <Text style={styles.openBtnText}>Open ↗</Text>
+                </Pressable>
+              ) : null}
             </View>
           </Pressable>
         );
@@ -161,13 +167,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   title: { fontSize: 15, fontWeight: "700", color: colors.ink, lineHeight: 20 },
-  guess: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 19,
-    color: colors.accentText,
-    fontWeight: "500",
+  openBtn: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: colors.accentTint,
+    justifyContent: "center",
   },
+  openBtnText: { fontSize: 13, fontWeight: "700", color: colors.accentText },
   lifeRow: {
     marginTop: 12,
     flexDirection: "row",

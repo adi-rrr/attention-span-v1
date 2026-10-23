@@ -4,18 +4,16 @@ import { requireUserId } from "../auth.js";
 import { query } from "../db.js";
 import {
   INBOX_FIELDS,
-  draftKeep,
+  draftPlan,
   inboxSummary,
   keepSave,
   letGo,
   markDone,
   mirror,
   sweepExpiredSaves,
-  triageMissing,
 } from "../services/lifecycle.js";
 
 const draftBody = z.object({
-  mode: z.enum(["plan", "distill"]),
   timezone: z.string().optional(),
 });
 
@@ -26,14 +24,14 @@ const keepBody = z.object({
   takeaway: z.string().max(400).optional(),
   folder_id: z.string().uuid().nullable().optional(),
   timezone: z.string().optional(),
+  keep_link: z.boolean().optional(),
 });
 
 export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
-  /** Inbox: soonest-to-fade first, with the AI's guess filled in where possible. */
+  /** Inbox: soonest-to-fade first. */
   app.get("/inbox", async (req) => {
     const userId = requireUserId(req);
     await sweepExpiredSaves(userId, { force: true });
-    await triageMissing(userId);
     const { rows } = await query(
       `SELECT ${INBOX_FIELDS}
        FROM saves
@@ -64,11 +62,12 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(204).send();
   });
 
-  app.post("/saves/:id/keep/draft", async (req) => {
+  /** AI starting point for "Plan it". "Distill it" has no draft by design. */
+  app.post("/saves/:id/plan/draft", async (req) => {
     const userId = requireUserId(req);
     const { id } = req.params as { id: string };
     const body = draftBody.parse(req.body ?? {});
-    return draftKeep(userId, id, body.mode, body.timezone ?? "UTC");
+    return draftPlan(userId, id, body.timezone ?? "UTC");
   });
 
   app.post("/saves/:id/keep", async (req) => {
@@ -94,7 +93,8 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/mirror", async (req) => {
     const userId = requireUserId(req);
+    const { tz } = req.query as { tz?: string };
     await sweepExpiredSaves(userId, { force: true });
-    return mirror(userId);
+    return mirror(userId, tz);
   });
 };

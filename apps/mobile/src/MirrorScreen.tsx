@@ -6,11 +6,52 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 import { fetchMirror } from "./lifecycle";
-import { Text, colors, shadow } from "./theme";
+import { deviceTimezone } from "./reminders/format";
+import { Text, colors } from "./theme";
 import type { Mirror } from "./types";
 
-/** This month, honestly: what you saved, and what you did with it. */
+type DayState = "acted" | "faded" | "quiet" | "today" | "future" | "blank";
+
+const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+const TODAY_COLOR = "#E8835F";
+const LET_GO_COLOR = "#B54A24";
+
+const DOT: Record<Exclude<DayState, "blank">, object> = {
+  acted: { backgroundColor: colors.ink },
+  faded: { backgroundColor: "#B9B8D6" },
+  quiet: { borderWidth: 2, borderColor: "#C7C8EE", backgroundColor: "transparent" },
+  today: { backgroundColor: TODAY_COLOR },
+  future: { backgroundColor: "#E2E3F5" },
+};
+
+/** Monday-first weeks for the month, each cell carrying what happened that day. */
+function buildWeeks(data: Mirror): DayState[][] {
+  const [y, m] = data.month_start.split("-").map(Number) as [number, number];
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const byDay = new Map(data.days.map((d) => [d.day, d]));
+  const todayNum = Number(data.today.slice(8, 10));
+
+  const cells: DayState[] = Array(lead).fill("blank");
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${data.month_start.slice(0, 8)}${String(d).padStart(2, "0")}`;
+    const info = byDay.get(key);
+    if (d === todayNum) cells.push("today");
+    else if (d > todayNum) cells.push("future");
+    else if (info?.acted) cells.push("acted");
+    else if (info?.faded) cells.push("faded");
+    else cells.push("quiet");
+  }
+  while (cells.length % 7) cells.push("blank");
+
+  const weeks: DayState[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+/** This month, honestly: how much of what you saved you acted on. */
 export function MirrorScreen() {
   const [data, setData] = useState<Mirror | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +61,7 @@ export function MirrorScreen() {
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchMirror());
+      setData(await fetchMirror(deviceTimezone()));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load your mirror");
     } finally {
@@ -41,71 +82,128 @@ export function MirrorScreen() {
     );
   }
 
-  const month = new Date(data.month_start).toLocaleDateString(undefined, {
+  const [y, m] = data.month_start.split("-").map(Number) as [number, number];
+  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString(undefined, {
     month: "long",
+    year: "numeric",
   });
-  const acted = data.done + data.planned + data.distilled;
-  const decided = acted + data.let_go;
-  const shelfPct = data.shelf_limit
-    ? Math.min(1, data.shelf_used / data.shelf_limit)
-    : 0;
+  const todayCol = (new Date(y, m - 1, Number(data.today.slice(8, 10))).getDay() + 6) % 7;
+  const weeks = buildWeeks(data);
 
-  const tiles: { label: string; value: number; note: string }[] = [
-    { label: "Did it", value: data.done, note: "acted on" },
-    { label: "Planned", value: data.planned, note: "next step set" },
-    { label: "Distilled", value: data.distilled, note: "lesson kept" },
-    { label: "Let go", value: data.let_go, note: "a clean choice" },
-    { label: "Faded", value: data.faded, note: "slipped by" },
-    { label: "In inbox", value: data.inbox.total, note: "still to decide" },
-  ];
+  const quietMonth = data.saved + data.acted + data.let_go + data.faded === 0;
+  const note = quietMonth
+      ? "Nothing saved yet this month. Save freely; decide later."
+      : `${data.faded} faded. ${data.let_go} you let go on purpose.\nThat's attention you took back.`;
 
   return (
     <ScrollView
       contentContainerStyle={styles.scroll}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
     >
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>{month} so far</Text>
-        <Text style={styles.headline}>
-          {data.saved === 0
-            ? "Nothing saved yet this month."
-            : `You saved ${data.saved} ${data.saved === 1 ? "thing" : "things"} and acted on ${acted}.`}
+      <Text style={styles.bigNum} accessibilityLabel={`${data.acted} acted on`}>
+        {data.acted}
+      </Text>
+      <View style={styles.headRow}>
+        <View>
+          <Text style={styles.actedOn}>ACTED ON</Text>
+          <Text style={styles.month}>{monthLabel}</Text>
+        </View>
+        <Text style={styles.ofSaved}>
+          of {data.saved}
+          {"\n"}saved
         </Text>
-        {decided > 0 ? (
-          <Text style={styles.sub}>
-            {data.let_go > 0
-              ? `Letting go of ${data.let_go} counts too: that's attention you took back.`
-              : "Every decision is attention you took back."}
-          </Text>
-        ) : null}
       </View>
 
+      <View style={styles.weekRow}>
+        {WEEKDAYS.map((d, i) => (
+          <Text
+            key={`${d}-${i}`}
+            style={[styles.weekday, i === todayCol && styles.weekdayToday]}
+          >
+            {d}
+          </Text>
+        ))}
+      </View>
       <View style={styles.grid}>
-        {tiles.map((t) => (
-          <View key={t.label} style={styles.tile}>
-            <Text style={styles.tileNum}>{t.value}</Text>
-            <Text style={styles.tileLabel}>{t.label}</Text>
-            <Text style={styles.tileNote}>{t.note}</Text>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={styles.weekRow}>
+            {week.map((state, di) => (
+              <View key={di} style={styles.cell}>
+                {state === "blank" ? null : <View style={[styles.dot, DOT[state]]} />}
+              </View>
+            ))}
           </View>
         ))}
       </View>
 
-      <View style={styles.shelf}>
-        <View style={styles.shelfHead}>
-          <Text style={styles.shelfTitle}>Your shelf</Text>
-          <Text style={styles.shelfCount}>
-            {data.shelf_used} / {data.shelf_limit}
-          </Text>
-        </View>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${Math.round(shelfPct * 100)}%` }]} />
-        </View>
-        <Text style={styles.shelfNote}>
-          Plans and takeaways you're keeping. When it's full, let one go to keep
-          another.
-        </Text>
+      <View style={styles.legend}>
+        {(
+          [
+            ["acted", "acted"],
+            ["faded", "something faded"],
+            ["quiet", "quiet"],
+            ["today", "today"],
+          ] as const
+        ).map(([state, label]) => (
+          <View key={state} style={styles.legendItem}>
+            <View style={[styles.legendDot, DOT[state]]} />
+            <Text style={styles.legendText}>{label}</Text>
+          </View>
+        ))}
       </View>
+
+      <View style={styles.rule} />
+      <View style={styles.stats}>
+        {(
+          [
+            ["did it", data.done, false],
+            ["planned", data.planned, false],
+            ["distilled", data.distilled, false],
+            ["let go", data.let_go, true],
+          ] as const
+        ).map(([label, value, accent]) => (
+          <View key={label} style={styles.stat}>
+            <Text style={[styles.statNum, accent && styles.statNumAccent]}>{value}</Text>
+            <Text style={styles.statLabel}>{label}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.rule} />
+
+      <View style={styles.noteRow}>
+        <Flame />
+        <Text style={styles.note}>{note}</Text>
+      </View>
+
+      <Text style={styles.shelf}>
+        Shelf: {data.shelf_used} of {data.shelf_limit} plans and takeaways kept
+      </Text>
     </ScrollView>
+  );
+}
+
+/** Little hand-drawn flame waving hello. */
+function Flame() {
+  return (
+    <Svg width={56} height={64} viewBox="0 0 64 72" accessibilityElementsHidden>
+      <Path
+        d="M32 6 C38 18 52 26 50 46 C49 60 40 68 30 68 C18 68 12 58 13 47 C14 37 22 33 24 24 C27 30 30 31 32 26 C34 20 31 12 32 6 Z"
+        fill={colors.peach}
+        stroke={colors.ink}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+      <Circle cx={26} cy={48} r={1.8} fill={colors.ink} />
+      <Circle cx={36} cy={48} r={1.8} fill={colors.ink} />
+      <Path d="M26 55 Q31 59 36 55" stroke={colors.ink} strokeWidth={2} fill="none" strokeLinecap="round" />
+      <Path
+        d="M49 44 L57 35 M57 35 L60 31 M57 35 L61 36"
+        stroke={colors.ink}
+        strokeWidth={2}
+        fill="none"
+        strokeLinecap="round"
+      />
+    </Svg>
   );
 }
 
@@ -113,54 +211,60 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 120 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   error: { color: colors.danger, marginBottom: 8 },
-  hero: {
-    padding: 20,
-    borderRadius: 28,
-    backgroundColor: colors.ink,
-  },
-  eyebrow: { fontSize: 13, fontWeight: "700", color: "#C9C8E0" },
-  headline: {
-    marginTop: 6,
-    fontSize: 24,
-    lineHeight: 30,
+  bigNum: {
+    fontSize: 128,
+    lineHeight: 132,
     fontWeight: "800",
-    letterSpacing: -0.5,
-    color: "#FFFFFF",
+    letterSpacing: -7,
+    color: colors.ink,
+    marginLeft: -6,
   },
-  sub: { marginTop: 8, fontSize: 14, lineHeight: 20, color: "#DCDBF0" },
-  grid: {
-    marginTop: 14,
+  headRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+  actedOn: { fontSize: 28, fontWeight: "800", letterSpacing: -0.5, color: colors.ink },
+  month: { fontSize: 28, fontWeight: "400", color: colors.muted, marginTop: -2 },
+  ofSaved: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: colors.muted,
+    textAlign: "right",
+    marginBottom: 4,
+  },
+  weekRow: { flexDirection: "row", gap: 10 },
+  weekday: {
+    flex: 1,
+    marginTop: 26,
+    marginBottom: 10,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  weekdayToday: { color: LET_GO_COLOR },
+  grid: { gap: 10 },
+  cell: { flex: 1, aspectRatio: 1 },
+  dot: { flex: 1, borderRadius: 999 },
+  legend: {
+    marginTop: 18,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    columnGap: 16,
+    rowGap: 6,
   },
-  tile: {
-    flexBasis: "30%",
-    flexGrow: 1,
-    padding: 14,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    ...shadow,
-  },
-  tileNum: { fontSize: 28, fontWeight: "800", color: colors.ink },
-  tileLabel: { fontSize: 13, fontWeight: "700", color: colors.ink },
-  tileNote: { fontSize: 12, color: colors.muted, marginTop: 1 },
-  shelf: {
-    marginTop: 14,
-    padding: 18,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.75)",
-  },
-  shelfHead: { flexDirection: "row", justifyContent: "space-between" },
-  shelfTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
-  shelfCount: { fontSize: 15, fontWeight: "700", color: colors.accentText },
-  track: {
-    marginTop: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.chip,
-    overflow: "hidden",
-  },
-  fill: { height: 10, borderRadius: 5, backgroundColor: colors.accent },
-  shelfNote: { marginTop: 10, fontSize: 13, lineHeight: 18, color: colors.muted },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendDot: { width: 14, height: 14, borderRadius: 7 },
+  legendText: { fontSize: 14, color: colors.inkSoft },
+  rule: { height: 2, backgroundColor: colors.ink, marginVertical: 16 },
+  stats: { flexDirection: "row" },
+  stat: { flex: 1 },
+  statNum: { fontSize: 32, fontWeight: "800", color: colors.ink },
+  statNumAccent: { color: LET_GO_COLOR },
+  statLabel: { fontSize: 14, color: colors.inkSoft },
+  noteRow: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 4 },
+  note: { flex: 1, fontSize: 17, lineHeight: 25, fontWeight: "600", color: colors.ink },
+  shelf: { marginTop: 18, fontSize: 13, color: colors.muted },
 });
