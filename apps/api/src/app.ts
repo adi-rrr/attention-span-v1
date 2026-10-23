@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { healthRoutes } from "./routes/health.js";
@@ -11,12 +10,7 @@ import { reminderRoutes } from "./routes/reminders.js";
 import { pushFireRoutes, pushRoutes } from "./routes/push.js";
 import { lifecycleRoutes } from "./routes/lifecycle.js";
 import { sweepExpiredSaves } from "./services/lifecycle.js";
-
-function passcodeMatches(given: string, expected: string): boolean {
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+import { authenticate } from "./auth.js";
 
 /**
  * Builds the API. Locally it is served at the root (`src/index.ts`); on
@@ -41,32 +35,30 @@ export async function buildApp(
   });
 
   app.addHook("onRequest", async (req, reply) => {
-    // Hosted web app: one shared passcode guards everything except the
-    // health check and the signed QStash callback.
-    const passcode = process.env.APP_PASSCODE;
+    // Open without signing in: CORS preflight, the health check, and the
+    // signed QStash callback that fires reminder pushes.
     const path = req.url.split("?")[0] ?? "";
     const open =
       req.method === "OPTIONS" ||
       path === `${prefix}/health` ||
       path === `${prefix}/push/fire`;
-    if (passcode && !open) {
-      const given = req.headers["x-passcode"];
-      if (typeof given !== "string" || !passcodeMatches(given, passcode)) {
-        return reply
-          .code(401)
-          .send({ error: "Passcode required", code: "PASSCODE_REQUIRED" });
-      }
-    }
+    if (open) return;
 
-    // P0 stub: treat x-user-id as authenticated user until JWT is wired
-    const stub = req.headers["x-user-id"];
-    if (typeof stub === "string" && stub.length > 0) {
-      (req as { userId?: string }).userId = stub;
-      // Expired inbox saves are deleted lazily on any request (throttled).
-      await sweepExpiredSaves(stub).catch((err) => {
-        app.log.error(err, "expiry sweep failed");
-      });
+    let userId: string | null;
+    try {
+      userId = await authenticate(req);
+    } catch (err) {
+      const e = err as Error & { statusCode?: number; code?: string };
+      return reply
+        .code(e.statusCode ?? 401)
+        .send({ error: e.message, code: e.code ?? "AUTH_REQUIRED" });
     }
+    if (!userId) return;
+    (req as { userId?: string }).userId = userId;
+    // Expired inbox saves are deleted lazily on any request (throttled).
+    await sweepExpiredSaves(userId).catch((err) => {
+      app.log.error(err, "expiry sweep failed");
+    });
   });
 
   for (const routes of [

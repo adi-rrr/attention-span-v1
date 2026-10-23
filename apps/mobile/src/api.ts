@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { getPasscode, notifyPasscodeRequired } from "./passcode";
+import { authEnabled, getAccessToken, notifySignInRequired } from "./session";
 
 // The hosted web app serves the API from the same site under /api.
 const API_URL =
@@ -7,7 +7,7 @@ const API_URL =
     ? (process.env.EXPO_PUBLIC_WEB_API_URL ?? "/api")
     : (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001");
 
-/** Dev stub: send x-user-id until JWT auth is wired (P0). */
+/** Local dev without sign-in: the API trusts this user id instead. */
 const DEV_USER_ID =
   process.env.EXPO_PUBLIC_DEV_USER_ID ??
   "00000000-0000-4000-8000-000000000001";
@@ -35,13 +35,16 @@ export async function api<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const hasBody = init.body != null && init.body !== "";
-  const passcode = getPasscode();
+  const token = authEnabled ? await getAccessToken() : null;
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      "x-user-id": DEV_USER_ID,
-      ...(passcode ? { "x-passcode": passcode } : {}),
+      ...(authEnabled
+        ? token
+          ? { Authorization: `Bearer ${token}` }
+          : {}
+        : { "x-user-id": DEV_USER_ID }),
       ...(init.headers ?? {}),
     },
   });
@@ -54,13 +57,8 @@ export async function api<T>(
     } catch {
       /* keep raw text */
     }
-    if (
-      res.status === 401 &&
-      typeof body === "object" &&
-      body !== null &&
-      (body as { code?: unknown }).code === "PASSCODE_REQUIRED"
-    ) {
-      notifyPasscodeRequired();
+    if (res.status === 401 && authEnabled) {
+      notifySignInRequired();
     }
     throw new ApiError(res.status, path, body);
   }

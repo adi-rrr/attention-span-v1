@@ -30,8 +30,14 @@ import {
   listenForReminderTaps,
 } from "./src/reminders/listen";
 import { scheduleDailyDigest } from "./src/reminders/digest";
-import { onPasscodeRequired, setPasscode } from "./src/passcode";
-import { PasscodeScreen } from "./src/PasscodeScreen";
+import {
+  authEnabled,
+  getSession,
+  onSessionChange,
+  onSignInRequired,
+  signOut,
+} from "./src/session";
+import { SignInScreen } from "./src/SignInScreen";
 import type { InboxSummary, Save } from "./src/types";
 
 initReminderNotifications();
@@ -79,9 +85,23 @@ export default function App() {
   const [decideRequested, setDecideRequested] = useState(false);
   const [detailSaveId, setDetailSaveId] = useState<string | null>(null);
   const [toast, setToast] = useState<SaveOutcome | null>(null);
-  const [locked, setLocked] = useState(false);
+  // null while checking for a saved session; always true in local dev mode.
+  const [signedIn, setSignedIn] = useState<boolean | null>(authEnabled ? null : true);
 
-  useEffect(() => onPasscodeRequired(() => setLocked(true)), []);
+  useEffect(() => {
+    if (!authEnabled) return;
+    void getSession().then((s) => setSignedIn(Boolean(s)));
+    const stopSession = onSessionChange((s) => setSignedIn(Boolean(s)));
+    // The API said the session is gone (expired or revoked): sign in again.
+    const stopRequired = onSignInRequired(() => {
+      void signOut();
+      setSignedIn(false);
+    });
+    return () => {
+      stopSession();
+      stopRequired();
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -99,8 +119,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (signedIn) void refresh();
+    else {
+      setInbox([]);
+      setSummary(null);
+    }
+  }, [refresh, signedIn]);
 
   const onShareResult = useCallback(
     (outcome: SaveOutcome) => {
@@ -152,15 +176,18 @@ export default function App() {
     return <View style={styles.safe} />;
   }
 
-  if (locked) {
+  if (signedIn === null) {
+    return <View style={styles.safe} />;
+  }
+
+  if (!signedIn) {
     return (
       <SafeAreaView style={styles.safe}>
-        <PasscodeScreen
-          onSubmit={(code) => {
-            setPasscode(code);
-            setLocked(false);
-            void refresh();
-          }}
+        <SignInScreen />
+        <Toast
+          message={toast?.message ?? null}
+          ok={toast?.ok}
+          onHide={() => setToast(null)}
         />
         <StatusBar style="dark" />
       </SafeAreaView>
@@ -206,7 +233,18 @@ export default function App() {
       {/* The inbox draws its own big-number header. */}
       {tab !== "inbox" ? (
         <View style={styles.header}>
-          <Text style={styles.pageTitle}>{TITLE[tab]}</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.pageTitle}>{TITLE[tab]}</Text>
+            {authEnabled ? (
+              <Pressable
+                style={styles.signOut}
+                onPress={() => void signOut()}
+                accessibilityRole="button"
+              >
+                <Text style={styles.signOutText}>Sign out</Text>
+              </Pressable>
+            ) : null}
+          </View>
           <Text style={styles.sub}>{SUBTITLE[tab]}</Text>
         </View>
       ) : null}
@@ -284,6 +322,20 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
   },
   header: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 6 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  signOut: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    justifyContent: "center",
+  },
+  signOutText: { fontSize: 13, fontWeight: "600", color: colors.muted },
   pageTitle: {
     fontSize: 44,
     lineHeight: 46,

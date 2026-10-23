@@ -26,9 +26,9 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
 };
 
 /**
- * Called by Upstash QStash at a reminder's fire time. Not behind the
- * passcode; instead the request must carry a valid QStash signature, checked
- * against the raw body.
+ * Called by Upstash QStash at a reminder's fire time. Not behind sign-in;
+ * instead the request must carry a valid QStash signature, checked against
+ * the raw body.
  */
 export const pushFireRoutes: FastifyPluginAsync = async (app) => {
   app.addContentTypeParser(

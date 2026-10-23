@@ -36,10 +36,16 @@ export function failedMessage(err: unknown): SaveOutcome {
           return { ok: true, message: `Already saved on ${when}. It's in your inbox.` };
       }
     }
-    if (body.code === "PASSCODE_REQUIRED") {
+    if (body.code === "AUTH_REQUIRED") {
       return {
         ok: false,
-        message: "Not saved: open Attention Span, enter your passcode, then share again.",
+        message: "Not saved: open Attention Span and sign in, then share again.",
+      };
+    }
+    if (body.code === "NOT_INVITED") {
+      return {
+        ok: false,
+        message: "Not saved: this account hasn't been invited to Attention Span yet.",
       };
     }
     if (err.status === 400) {
