@@ -24,3 +24,6 @@ dist/
 .vercel/
 .vercel
 .env*
+
+# Native build output of local Expo modules
+apps/mobile/modules/*/android/build/

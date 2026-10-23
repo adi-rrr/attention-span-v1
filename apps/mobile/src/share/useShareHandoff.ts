@@ -1,6 +1,7 @@
 import { useShareIntent } from "expo-share-intent";
 import { useCallback, useEffect, useRef } from "react";
-import { BackHandler, ToastAndroid } from "react-native";
+import { ToastAndroid } from "react-native";
+import { returnToSourceApp } from "../../modules/return-to-source";
 import { createSave, lifespanDaysOf } from "./createSave";
 import { parseShareIntent } from "./platform";
 import {
@@ -25,7 +26,7 @@ export function useShareHandoff(onResult: (outcome: SaveOutcome) => void) {
       onResult(outcome);
       // Android toasts stay on screen after we leave, over the other app.
       ToastAndroid.show(outcome.message, ToastAndroid.LONG);
-      if (outcome.ok) setTimeout(() => BackHandler.exitApp(), 700);
+      if (outcome.ok) setTimeout(returnToSourceApp, 700);
     },
     [onResult],
   );
