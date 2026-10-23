@@ -93,11 +93,6 @@ export function parseAppDeepLink(
   }
 }
 
-export function parseUnderstandDeepLink(url: string): string | null {
-  const parsed = parseAppDeepLink(url);
-  return parsed?.kind === "understand" ? parsed.id : null;
-}
-
 export function parseSaveDeepLink(url: string): string | null {
   const parsed = parseAppDeepLink(url);
   return parsed?.kind === "save" ? parsed.id : null;

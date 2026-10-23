@@ -9,6 +9,8 @@ import { understandRoutes } from "./routes/understand.js";
 import { searchRoutes } from "./routes/search.js";
 import { reminderRoutes } from "./routes/reminders.js";
 import { pushFireRoutes, pushRoutes } from "./routes/push.js";
+import { lifecycleRoutes } from "./routes/lifecycle.js";
+import { sweepExpiredSaves } from "./services/lifecycle.js";
 
 function passcodeMatches(given: string, expected: string): boolean {
   const a = Buffer.from(given);
@@ -60,6 +62,10 @@ export async function buildApp(
     const stub = req.headers["x-user-id"];
     if (typeof stub === "string" && stub.length > 0) {
       (req as { userId?: string }).userId = stub;
+      // Expired inbox saves are deleted lazily on any request (throttled).
+      await sweepExpiredSaves(stub).catch((err) => {
+        app.log.error(err, "expiry sweep failed");
+      });
     }
   });
 
@@ -73,6 +79,7 @@ export async function buildApp(
     reminderRoutes,
     pushRoutes,
     pushFireRoutes,
+    lifecycleRoutes,
   ]) {
     await app.register(routes, { prefix });
   }

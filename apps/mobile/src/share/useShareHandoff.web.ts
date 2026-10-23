@@ -1,50 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
-import {
-  createSave,
-  getDuplicateConflict,
-  isDuplicateConflict,
-  type CreateSaveInput,
-  type Save,
-} from "./createSave";
+import { useEffect, useRef } from "react";
+import { createSave, lifespanDaysOf } from "./createSave";
 import { parseShareIntent } from "./platform";
-
-export type DuplicatePrompt = {
-  input: CreateSaveInput;
-  savedAt: string;
-};
+import {
+  failedMessage,
+  NOTHING_TO_SAVE,
+  savedMessage,
+  type SaveOutcome,
+} from "./saveMessages";
 
 /**
- * Web version of the share handoff. The installed PWA is a Web Share Target:
+ * Web version of the zero-tap save. The installed PWA is a Web Share Target:
  * Android opens it as `/?title=…&text=…&url=…` (see public/manifest.json).
- * `/?understand=<saveId>` reopens an existing save's Understand flow.
+ * The result shows as an in-app toast; the browser can't return to the
+ * previous app on its own.
  */
-export function useShareHandoff(onOpenUnderstand: (save: Save) => void) {
-  const [duplicate, setDuplicate] = useState<DuplicatePrompt | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useShareHandoff(onResult: (outcome: SaveOutcome) => void) {
   const handledRef = useRef(false);
-
-  const submitSave = useCallback(
-    async (input: CreateSaveInput) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const save = await createSave(input);
-        onOpenUnderstand(save);
-        setDuplicate(null);
-      } catch (e) {
-        if (isDuplicateConflict(e)) {
-          setDuplicate({ input, savedAt: getDuplicateConflict(e).saved_at });
-        } else {
-          setError(e instanceof Error ? e.message : "Could not save");
-        }
-      } finally {
-        setBusy(false);
-      }
-    },
-    [onOpenUnderstand],
-  );
 
   useEffect(() => {
     if (handledRef.current) return;
@@ -54,18 +25,10 @@ export function useShareHandoff(onOpenUnderstand: (save: Save) => void) {
     const sharedUrl = params.get("url");
     const sharedText = params.get("text");
     const sharedTitle = params.get("title");
-    const understandId = params.get("understand");
-    if (!sharedUrl && !sharedText && !understandId) return;
+    if (!sharedUrl && !sharedText) return;
 
     // Clear the query so a reload doesn't share the same thing twice.
     window.history.replaceState(null, "", window.location.pathname);
-
-    if (understandId) {
-      void api<Save>(`/saves/${understandId}`)
-        .then(onOpenUnderstand)
-        .catch((e) => setError(e instanceof Error ? e.message : "Not found"));
-      return;
-    }
 
     const payload = parseShareIntent({
       text: [sharedTitle, sharedText].filter(Boolean).join(" ") || null,
@@ -73,29 +36,15 @@ export function useShareHandoff(onOpenUnderstand: (save: Save) => void) {
       hasImage: false,
     });
     if (!payload) {
-      setError("Nothing to save from share.");
+      onResult(NOTHING_TO_SAVE);
       return;
     }
-    void submitSave({
+    void createSave({
       platform: payload.platform,
       source_url: payload.source_url,
       title: payload.title,
-    });
-  }, [onOpenUnderstand, submitSave]);
-
-  const cancelDuplicate = useCallback(() => setDuplicate(null), []);
-
-  const replaceDuplicate = useCallback(async () => {
-    if (!duplicate) return;
-    await submitSave({ ...duplicate.input, replace_existing: true });
-  }, [duplicate, submitSave]);
-
-  return {
-    duplicate,
-    busy,
-    error,
-    cancelDuplicate,
-    replaceDuplicate,
-    clearError: () => setError(null),
-  };
+    })
+      .then((save) => onResult(savedMessage(lifespanDaysOf(save))))
+      .catch((e) => onResult(failedMessage(e)));
+  }, [onResult]);
 }

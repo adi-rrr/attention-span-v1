@@ -5,9 +5,15 @@ import { query } from "../db.js";
 import { httpError } from "../httpError.js";
 import { resolvePreview } from "../services/preview.js";
 import { cancelReminder } from "../services/reminders.js";
+import {
+  getLifecycleSettings,
+  logSaveEvent,
+  triageSave,
+} from "../services/lifecycle.js";
 
 const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, user_note,
               folder_id, folder_path, content_kind, offline_policy,
+              expires_at, ai_intent, ai_reason, plan_text, plan_at, takeaway,
               LEFT(regexp_replace(understand_text, E'[\\n\\r]+', ' ', 'g'), 140)
                 AS understand_snippet,
               EXISTS (
@@ -62,7 +68,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     const params: unknown[] = [userId];
 
     if (q.inbox === "true") {
-      clauses.push(`status = 'understand_pending'`);
+      clauses.push(`status = 'inbox'`);
     } else if (q.status) {
       const statuses = q.status.split(",").map((s) => s.trim());
       params.push(statuses);
@@ -98,7 +104,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
 
     if (body.source_url) {
       const { rows: existing } = await query(
-        `SELECT id, created_at FROM saves
+        `SELECT id, created_at, status, expires_at FROM saves
          WHERE user_id = $1 AND source_url = $2 AND deleted_at IS NULL
          LIMIT 1`,
         [userId, body.source_url],
@@ -108,6 +114,8 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(409).send({
           existing_save_id: existing[0].id,
           saved_at: existing[0].created_at,
+          status: existing[0].status,
+          expires_at: existing[0].expires_at,
           message: `Already saved. Replace it?`,
         });
       }
@@ -133,34 +141,29 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
       preview.title ||
       "";
 
+    // Zero-tap save: straight into the inbox with a countdown.
+    const { lifespanDays } = await getLifecycleSettings(userId);
     const { rows } = await query(
       `INSERT INTO saves (
-         id, user_id, platform, source_url, title, status
-       ) VALUES ($1, $2, $3, $4, $5, 'understand_pending')
+         id, user_id, platform, source_url, title, status, expires_at
+       ) VALUES ($1, $2, $3, $4, $5, 'inbox', now() + make_interval(days => $6))
        RETURNING id, platform, status, source_url, title,
                  user_note, folder_id, folder_path, content_kind, offline_policy,
-                 created_at, updated_at`,
+                 expires_at, created_at, updated_at`,
       [
         id,
         userId,
         body.platform,
         body.source_url ?? null,
         title,
+        lifespanDays,
       ],
     );
+    await logSaveEvent(userId, "saved", body.platform);
 
-    await query(
-      `INSERT INTO understand_sessions (save_id, status)
-       VALUES ($1, 'pending')
-       ON CONFLICT (save_id) DO UPDATE SET
-         status = 'pending',
-         qa_pairs = '[]'::jsonb,
-         ai_turn_count = 0,
-         completed_at = NULL,
-         skipped_at = NULL,
-         updated_at = now()`,
-      [id],
-    );
+    // The AI's guess at why it was saved. Don't hold up the share for it;
+    // GET /inbox fills in any guess that didn't finish here.
+    void triageSave(userId, id);
 
     return reply.code(201).send(rows[0]);
   });
@@ -172,6 +175,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     const { rows } = await query(
       `SELECT s.id, s.platform, s.status, s.source_url, s.title, s.user_note,
               s.folder_id, s.folder_path, s.content_kind, s.offline_policy,
+              s.expires_at, s.ai_intent, s.ai_reason, s.plan_text, s.plan_at, s.takeaway,
               s.created_at, s.updated_at,
               COALESCE(us.qa_pairs, '[]'::jsonb) AS qa_pairs,
               CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object(
@@ -231,6 +235,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
        WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
        RETURNING id, platform, status, source_url, title, user_note,
                  folder_id, folder_path, content_kind, offline_policy,
+              expires_at, ai_intent, ai_reason, plan_text, plan_at, takeaway,
                  created_at, updated_at`,
       [
         id,

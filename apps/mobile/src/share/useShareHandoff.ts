@@ -1,61 +1,33 @@
-import * as Linking from "expo-linking";
 import { useShareIntent } from "expo-share-intent";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { useCallback, useEffect, useRef } from "react";
+import { BackHandler, ToastAndroid } from "react-native";
+import { createSave, lifespanDaysOf } from "./createSave";
+import { parseShareIntent } from "./platform";
 import {
-  createSave,
-  getDuplicateConflict,
-  isDuplicateConflict,
-  type CreateSaveInput,
-  type Save,
-} from "./createSave";
-import { parseShareIntent, parseUnderstandDeepLink } from "./platform";
+  failedMessage,
+  NOTHING_TO_SAVE,
+  savedMessage,
+  type SaveOutcome,
+} from "./saveMessages";
 
-export type DuplicatePrompt = {
-  input: CreateSaveInput;
-  savedAt: string;
-};
-
-export function useShareHandoff(onOpenUnderstand: (save: Save) => void) {
+/**
+ * Zero-tap save. A share saves straight to the inbox, shows a one-line
+ * result, and hands the user back to the app they were scrolling.
+ * A failed save stays open so the message can be read.
+ */
+export function useShareHandoff(onResult: (outcome: SaveOutcome) => void) {
   const { hasShareIntent, shareIntent, resetShareIntent, isReady } =
     useShareIntent();
-  const [duplicate, setDuplicate] = useState<DuplicatePrompt | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const processingRef = useRef(false);
 
-  const openSaveById = useCallback(
-    async (saveId: string) => {
-      const save = await api<Save>(`/saves/${saveId}`);
-      onOpenUnderstand(save);
+  const report = useCallback(
+    (outcome: SaveOutcome) => {
+      onResult(outcome);
+      // Android toasts stay on screen after we leave, over the other app.
+      ToastAndroid.show(outcome.message, ToastAndroid.LONG);
+      if (outcome.ok) setTimeout(() => BackHandler.exitApp(), 700);
     },
-    [onOpenUnderstand],
-  );
-
-  const submitSave = useCallback(
-    async (input: CreateSaveInput) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const save = await createSave(input);
-        onOpenUnderstand(save);
-        resetShareIntent();
-        setDuplicate(null);
-      } catch (e) {
-        if (isDuplicateConflict(e)) {
-          const conflict = getDuplicateConflict(e);
-          setDuplicate({
-            input,
-            savedAt: conflict.saved_at,
-          });
-        } else {
-          setError(e instanceof Error ? e.message : "Could not save");
-        }
-      } finally {
-        setBusy(false);
-      }
-    },
-    [onOpenUnderstand, resetShareIntent],
+    [onResult],
   );
 
   const processSharePayload = useCallback(async () => {
@@ -64,19 +36,23 @@ export function useShareHandoff(onOpenUnderstand: (save: Save) => void) {
       webUrl: shareIntent.webUrl,
       hasImage: (shareIntent.files?.length ?? 0) > 0,
     });
+    resetShareIntent();
 
     if (!payload) {
-      setError("Nothing to save from share.");
-      resetShareIntent();
+      report(NOTHING_TO_SAVE);
       return;
     }
-
-    await submitSave({
-      platform: payload.platform,
-      source_url: payload.source_url,
-      title: payload.title,
-    });
-  }, [resetShareIntent, shareIntent, submitSave]);
+    try {
+      const save = await createSave({
+        platform: payload.platform,
+        source_url: payload.source_url,
+        title: payload.title,
+      });
+      report(savedMessage(lifespanDaysOf(save)));
+    } catch (e) {
+      report(failedMessage(e));
+    }
+  }, [report, resetShareIntent, shareIntent]);
 
   useEffect(() => {
     if (!isReady || !hasShareIntent || processingRef.current) return;
@@ -85,39 +61,4 @@ export function useShareHandoff(onOpenUnderstand: (save: Save) => void) {
       processingRef.current = false;
     });
   }, [hasShareIntent, isReady, processSharePayload]);
-
-  useEffect(() => {
-    function handleUrl(url: string) {
-      // Ignore expo-share-intent handoff URLs (handled by useShareIntent).
-      if (url.includes("dataUrl=") || url.includes("ShareKey")) return;
-      const saveId = parseUnderstandDeepLink(url);
-      if (saveId) void openSaveById(saveId);
-    }
-
-    void Linking.getInitialURL().then((url) => {
-      if (url) handleUrl(url);
-    });
-
-    const sub = Linking.addEventListener("url", ({ url }) => handleUrl(url));
-    return () => sub.remove();
-  }, [openSaveById]);
-
-  const cancelDuplicate = useCallback(() => {
-    setDuplicate(null);
-    resetShareIntent();
-  }, [resetShareIntent]);
-
-  const replaceDuplicate = useCallback(async () => {
-    if (!duplicate) return;
-    await submitSave({ ...duplicate.input, replace_existing: true });
-  }, [duplicate, submitSave]);
-
-  return {
-    duplicate,
-    busy,
-    error,
-    cancelDuplicate,
-    replaceDuplicate,
-    clearError: () => setError(null),
-  };
 }

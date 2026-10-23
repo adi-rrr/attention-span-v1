@@ -21,6 +21,12 @@ export type Save = {
   understand_snippet?: string | null;
   has_reminder?: boolean;
   reminder_fire_at?: string | null;
+  expires_at?: string | null;
+  ai_intent?: Intent | null;
+  ai_reason?: string | null;
+  plan_text?: string | null;
+  plan_at?: string | null;
+  takeaway?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -45,4 +51,36 @@ export type SaveDetail = Save & {
   reminder?: Reminder | null;
 };
 
-export const LIBRARY_STATUSES = "understand_done,done";
+export type Intent = "try" | "go" | "buy" | "learn" | "inspo" | "other";
+
+export type InboxSummary = {
+  total: number;
+  fading_24h: number;
+  lifespan_days: number;
+  digest_hour: number;
+};
+
+export type Mirror = {
+  month_start: string;
+  saved: number;
+  done: number;
+  planned: number;
+  distilled: number;
+  let_go: number;
+  faded: number;
+  shelf_used: number;
+  shelf_limit: number;
+  inbox: InboxSummary;
+};
+
+export type KeepMode = "plan" | "distill";
+
+export type KeepDraft = {
+  mode: KeepMode;
+  question: string;
+  draft: string;
+  suggested_at: string | null;
+};
+
+/** Kept and finished saves; the inbox has its own screen. */
+export const LIBRARY_STATUSES = "planned,distilled,understand_done,done";

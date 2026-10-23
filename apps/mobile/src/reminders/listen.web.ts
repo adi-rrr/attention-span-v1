@@ -10,7 +10,10 @@ export function initReminderNotifications() {
  * A tapped push opens `/?save=<id>` (cold start) or posts `open-save` to an
  * already-open window (see public/sw.js).
  */
-export function listenForReminderTaps(open: (saveId: string) => void) {
+export function listenForReminderTaps(
+  open: (saveId: string) => void,
+  _openDigest: () => void = () => {},
+) {
   const params = new URLSearchParams(window.location.search);
   const saveId = params.get("save");
   if (saveId) {

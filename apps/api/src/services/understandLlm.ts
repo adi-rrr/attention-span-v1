@@ -1,4 +1,5 @@
 import type { QaPair } from "./understand.js";
+import { llmError, openAiChatJson } from "./llm.js";
 
 export type ContentKind = "place" | "content" | "other";
 
@@ -43,13 +44,6 @@ Rules:
 - Suggest map_pin ONLY when content_kind is place and a place name/area is implied. Otherwise map_pin=null.
 - Suggest reminder only if they mentioned timing or asked to be reminded.
 - Return ONLY valid JSON matching the schema. No markdown.`;
-
-function llmError(message: string, statusCode = 503): Error & { statusCode: number; code: string } {
-  const err = new Error(message) as Error & { statusCode: number; code: string };
-  err.statusCode = statusCode;
-  err.code = "LLM_UNAVAILABLE";
-  return err;
-}
 
 function parseJsonResult(raw: string): LlmTurnResult | null {
   try {
@@ -118,57 +112,9 @@ function parseJsonResult(raw: string): LlmTurnResult | null {
 }
 
 async function callOpenAiJson(userPrompt: string): Promise<LlmTurnResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    throw llmError(
-      "OPENAI_API_KEY is required for Understand questions",
-      503,
-    );
-  }
-
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-  const base =
-    process.env.OPENAI_BASE_URL?.replace(/\/$/, "") ??
-    "https://api.openai.com/v1";
-
-  let res: Response;
-  try {
-    res = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.4,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-      signal: AbortSignal.timeout(20000),
-    });
-  } catch (e) {
-    console.error("[understandLlm] fetch failed", e);
-    throw llmError("Understand LLM request failed or timed out");
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    console.error("[understandLlm] OpenAI error", res.status, text.slice(0, 300));
-    throw llmError(`Understand LLM error (${res.status})`);
-  }
-
-  const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) {
-    throw llmError("Understand LLM returned empty response");
-  }
-
+  const content = await openAiChatJson(SYSTEM, userPrompt, {
+    label: "understandLlm",
+  });
   const parsed = parseJsonResult(content);
   if (!parsed) {
     throw llmError("Understand LLM returned invalid JSON");

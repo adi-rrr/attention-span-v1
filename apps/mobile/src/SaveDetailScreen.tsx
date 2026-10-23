@@ -11,6 +11,7 @@ import { Text, TextInput, shadow } from "./theme";
 import { api } from "./api";
 import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
+import { letGo, markDone } from "./lifecycle";
 import { FolderPickerModal } from "./components/FolderPickerModal";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import { formatReminderTime } from "./reminders/format";
@@ -71,23 +72,37 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
     }
   }
 
-  function confirmDelete() {
+  async function finish() {
+    setBusy(true);
+    setError(null);
+    try {
+      await markDone(saveId);
+      await cancelLocalReminder(saveId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmLetGo() {
     confirmDestructive(
-      "Delete this save?",
-      "This cannot be undone.",
-      "Delete",
+      "Let this go?",
+      "It's deleted for good, and counted as a clean choice in your Mirror.",
+      "Let go",
       () => {
-          void (async () => {
-            setBusy(true);
-            try {
-              await cancelLocalReminder(saveId);
-              await api(`/saves/${saveId}`, { method: "DELETE" });
-              onClose();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "Delete failed");
-              setBusy(false);
-            }
-          })();
+        void (async () => {
+          setBusy(true);
+          try {
+            await cancelLocalReminder(saveId);
+            await letGo(saveId);
+            onClose();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Couldn't let go");
+            setBusy(false);
+          }
+        })();
       },
     );
   }
@@ -137,7 +152,17 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
       <ScrollView contentContainerStyle={styles.scroll}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {firstAnswer?.answer ? (
+        {save.plan_text ? (
+          <>
+            <Text style={styles.quoteLead}>Your next step</Text>
+            <Text style={styles.quote}>“{save.plan_text}”</Text>
+          </>
+        ) : save.takeaway ? (
+          <>
+            <Text style={styles.quoteLead}>What you took from it</Text>
+            <Text style={styles.quote}>“{save.takeaway}”</Text>
+          </>
+        ) : firstAnswer?.answer ? (
           <>
             <Text style={styles.quoteLead}>You saved this because</Text>
             <Text style={styles.quote}>“{firstAnswer.answer}”</Text>
@@ -224,7 +249,7 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
         {save.status !== "done" ? (
           <Pressable
             style={[styles.btn, styles.btnPrimary, busy && styles.disabled]}
-            onPress={() => void patch({ status: "done" })}
+            onPress={() => void finish()}
             disabled={busy}
           >
             <Text style={styles.btnPrimaryText}>I did it</Text>
@@ -232,19 +257,11 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
         ) : null}
 
         <Pressable
-          style={[styles.btn, styles.btnGhost, busy && styles.disabled]}
-          onPress={() => void patch({ status: "archived" }, true)}
-          disabled={busy}
-        >
-          <Text style={styles.btnGhostText}>Archive</Text>
-        </Pressable>
-
-        <Pressable
           style={[styles.btn, styles.btnDanger, busy && styles.disabled]}
-          onPress={confirmDelete}
+          onPress={confirmLetGo}
           disabled={busy}
         >
-          <Text style={styles.btnDangerText}>Delete</Text>
+          <Text style={styles.btnDangerText}>Let go</Text>
         </Pressable>
       </ScrollView>
 
