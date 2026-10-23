@@ -188,7 +188,7 @@ export function FolderTreePicker({
             <TextInput
               style={styles.input}
               placeholder="Folder name"
-              placeholderTextColor="#6B6990"
+              placeholderTextColor="#8C7E72"
               value={newName}
               onChangeText={setNewName}
               editable={!busy && !creating && parentForCreate !== false}
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 2,
   },
-  rowOn: { backgroundColor: "#E7E8FA" },
+  rowOn: { backgroundColor: "#E6DFD5" },
   chevronSlot: { width: 28, alignItems: "center" },
   chevronHit: {
     width: 28,
@@ -288,25 +288,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 4,
   },
-  chevron: { fontSize: 14, color: "#5D5A7A", fontWeight: "700" },
+  chevron: { fontSize: 14, color: "#6B5A50", fontWeight: "700" },
   nameHit: { flex: 1, paddingVertical: 4 },
-  rowText: { fontSize: 16, color: "#1E1B3A" },
-  createBlock: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#D6D8F0", paddingTop: 12 },
-  createHint: { fontSize: 12, color: "#5D5A7A", marginBottom: 8 },
+  rowText: { fontSize: 16, color: "#1C1410" },
+  createBlock: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#DCD3C8", paddingTop: 12 },
+  createHint: { fontSize: 12, color: "#6B5A50", marginBottom: 8 },
   createRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#D6D8F0",
+    borderColor: "#DCD3C8",
     borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#FFF",
     fontSize: 16,
-    color: "#1E1B3A",
+    color: "#1C1410",
   },
   addBtn: {
-    backgroundColor: "#5B5BD6",
+    backgroundColor: "#1C1410",
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 18,
@@ -319,19 +319,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#FFF",
     borderWidth: 1,
-    borderColor: "#E7E8FA",
+    borderColor: "#E6DFD5",
     borderRadius: 18,
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
-  triggerOpen: { borderColor: "#5B5BD6", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-  triggerText: { flex: 1, fontSize: 16, color: "#1E1B3A", fontWeight: "500" },
-  triggerChevron: { fontSize: 14, color: "#5D5A7A", marginLeft: 8 },
+  triggerOpen: { borderColor: "#1C1410", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  triggerText: { flex: 1, fontSize: 16, color: "#1C1410", fontWeight: "500" },
+  triggerChevron: { fontSize: 14, color: "#6B5A50", marginLeft: 8 },
   panel: {
     backgroundColor: "#FFF",
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: "#5B5BD6",
+    borderColor: "#1C1410",
     borderBottomLeftRadius: 10,
     borderBottomRightRadius: 10,
     padding: 10,

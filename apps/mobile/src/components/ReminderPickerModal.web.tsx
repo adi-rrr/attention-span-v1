@@ -111,7 +111,7 @@ export function ReminderPickerModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(30, 27, 58, 0.45)",
+    backgroundColor: "rgba(28, 20, 16, 0.45)",
     justifyContent: "center",
     padding: 24,
   },

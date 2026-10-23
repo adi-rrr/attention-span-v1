@@ -16,15 +16,15 @@ import type { Mirror } from "./types";
 type DayState = "acted" | "faded" | "quiet" | "today" | "future" | "blank";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
-const TODAY_COLOR = "#E8835F";
-const LET_GO_COLOR = "#B54A24";
+const TODAY_COLOR = "#E2551A";
+const LET_GO_COLOR = "#B23F0C";
 
 const DOT: Record<Exclude<DayState, "blank">, object> = {
   acted: { backgroundColor: colors.ink },
-  faded: { backgroundColor: "#B9B8D6" },
-  quiet: { borderWidth: 2, borderColor: "#C7C8EE", backgroundColor: "transparent" },
+  faded: { backgroundColor: "#CFC6BB" },
+  quiet: { borderWidth: 2, borderColor: "#CFC6BB", backgroundColor: "transparent" },
   today: { backgroundColor: TODAY_COLOR },
-  future: { backgroundColor: "#E2E3F5" },
+  future: { backgroundColor: "#E6DFD5" },
 };
 
 /** Monday-first weeks for the month, each cell carrying what happened that day. */
@@ -105,6 +105,7 @@ export function MirrorScreen({ onOpenStat }: Props) {
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scroll}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
     >

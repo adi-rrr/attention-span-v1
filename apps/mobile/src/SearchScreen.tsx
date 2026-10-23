@@ -61,7 +61,7 @@ export function SearchScreen({ onOpenSave }: Props) {
         <TextInput
           style={styles.input}
           placeholder="How would you remember this?"
-          placeholderTextColor="#6B6990"
+          placeholderTextColor="#8C7E72"
           value={q}
           onChangeText={setQ}
           onSubmitEditing={() => void runSearch()}
@@ -119,40 +119,40 @@ export function SearchScreen({ onOpenSave }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
-  hint: { fontSize: 13, color: "#5D5A7A", marginBottom: 10 },
+  hint: { fontSize: 13, color: "#6B5A50", marginBottom: 10 },
   row: { flexDirection: "row", gap: 8, alignItems: "center" },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#D6D8F0",
+    borderColor: "#DCD3C8",
     borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: "#FFF",
     fontSize: 16,
-    color: "#1E1B3A",
+    color: "#1C1410",
   },
   btn: {
-    backgroundColor: "#5B5BD6",
+    backgroundColor: "#1C1410",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 18,
   },
   btnDisabled: { opacity: 0.4 },
   btnText: { color: "#FFF", fontWeight: "600" },
-  error: { color: "#C2364A", marginTop: 8 },
+  error: { color: "#B3261E", marginTop: 8 },
   list: { marginTop: 12, flex: 1 },
-  empty: { fontSize: 15, lineHeight: 22, color: "#5D5A7A", marginTop: 8 },
+  empty: { fontSize: 15, lineHeight: 22, color: "#6B5A50", marginTop: 8 },
   card: {
     backgroundColor: "#FFF",
     padding: 14,
     borderRadius: 18,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#E7E8FA",
+    borderColor: "#E6DFD5",
   },
-  title: { fontSize: 16, fontWeight: "600", color: "#1E1B3A" },
-  meta: { marginTop: 4, fontSize: 12, color: "#5D5A7A" },
-  snippet: { marginTop: 8, fontSize: 14, lineHeight: 20, color: "#3E3B5C" },
-  field: { fontWeight: "600", color: "#5D5A7A", textTransform: "capitalize" },
+  title: { fontSize: 16, fontWeight: "600", color: "#1C1410" },
+  meta: { marginTop: 4, fontSize: 12, color: "#6B5A50" },
+  snippet: { marginTop: 8, fontSize: 14, lineHeight: 20, color: "#3A2D25" },
+  field: { fontWeight: "600", color: "#6B5A50", textTransform: "capitalize" },
 });

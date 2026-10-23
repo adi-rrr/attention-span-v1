@@ -136,11 +136,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1E1B3A",
+    color: "#1C1410",
     marginBottom: 6,
   },
-  preview: { fontSize: 14, color: "#5D5A7A", marginBottom: 12 },
-  error: { color: "#C2364A", marginTop: 8 },
+  preview: { fontSize: 14, color: "#6B5A50", marginBottom: 12 },
+  error: { color: "#B3261E", marginTop: 8 },
   actions: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -154,9 +154,9 @@ const styles = StyleSheet.create({
     minWidth: 96,
     alignItems: "center",
   },
-  ghost: { backgroundColor: "#E7E8FA" },
-  ghostText: { color: "#1E1B3A", fontWeight: "600" },
-  primary: { backgroundColor: "#5B5BD6" },
+  ghost: { backgroundColor: "#E6DFD5" },
+  ghostText: { color: "#1C1410", fontWeight: "600" },
+  primary: { backgroundColor: "#1C1410" },
   primaryText: { color: "#FFF", fontWeight: "600" },
   disabled: { opacity: 0.5 },
 });

@@ -10,7 +10,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { Text, colors, fontAssets, shadow } from "./src/theme";
+import { Text, colors, fontAssets } from "./src/theme";
 import { InboxScreen } from "./src/InboxScreen";
 import { DecideScreen } from "./src/DecideScreen";
 import { JournalScreen } from "./src/JournalScreen";
@@ -45,6 +45,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "journal", label: "Journal" },
   { id: "search", label: "Search" },
 ];
+
+const TITLE: Record<Tab, string> = {
+  inbox: "Inbox",
+  library: "Kept",
+  journal: "Journal",
+  mirror: "Mirror",
+  search: "Search",
+};
 
 const SUBTITLE: Record<Tab, string> = {
   inbox: "Save freely. Decide what earns your attention.",
@@ -195,15 +203,13 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Clipped layer, so the overhanging shapes can't widen (and shift) the page. */}
-      <View pointerEvents="none" style={styles.backdrop}>
-        <View style={styles.blobPeach} />
-        <View style={styles.blobLilac} />
-      </View>
-      <View style={styles.header}>
-        <Text style={styles.brand}>Attention Span</Text>
-        <Text style={styles.sub}>{SUBTITLE[tab]}</Text>
-      </View>
+      {/* The inbox draws its own big-number header. */}
+      {tab !== "inbox" ? (
+        <View style={styles.header}>
+          <Text style={styles.pageTitle}>{TITLE[tab]}</Text>
+          <Text style={styles.sub}>{SUBTITLE[tab]}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.body}>
         {error ? (
@@ -250,8 +256,11 @@ export default function App() {
           <Pressable
             key={t.id}
             onPress={() => setTab(t.id)}
-            style={[styles.tab, tab === t.id && styles.tabActive]}
+            style={styles.tab}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t.id }}
           >
+            <View style={[styles.tabDot, tab === t.id && styles.tabDotOn]} />
             <Text
               style={[styles.tabLabel, tab === t.id && styles.tabLabelActive]}
               numberOfLines={1}
@@ -274,61 +283,36 @@ const styles = StyleSheet.create({
     // SafeAreaView only insets on iOS; push content below the Android status bar.
     paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
   },
-  backdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: "hidden",
-  },
-  blobPeach: {
-    position: "absolute",
-    top: -90,
-    right: -110,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: colors.peach,
-    opacity: 0.55,
-  },
-  blobLilac: {
-    position: "absolute",
-    top: 320,
-    left: -150,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: colors.lilac,
-    opacity: 0.45,
-  },
-  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 },
-  brand: {
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.8,
+  header: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 6 },
+  pageTitle: {
+    fontSize: 44,
+    lineHeight: 46,
+    fontWeight: "300",
+    letterSpacing: -1.6,
     color: colors.ink,
   },
-  sub: { marginTop: 4, fontSize: 14, color: colors.muted },
+  sub: { marginTop: 4, fontSize: 15, fontWeight: "300", color: colors.muted },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 12 },
   error: { color: colors.danger, marginBottom: 8 },
   tabBar: {
     flexDirection: "row",
-    marginHorizontal: 12,
-    marginBottom: 12,
-    padding: 5,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    paddingHorizontal: 6,
+    height: 62,
     borderRadius: 999,
-    backgroundColor: colors.surface,
-    ...shadow,
+    backgroundColor: colors.ink,
+    alignItems: "center",
   },
   tab: {
     flex: 1,
-    minHeight: 44,
-    borderRadius: 999,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
   },
-  tabActive: { backgroundColor: colors.accent },
-  tabLabel: { fontSize: 12, fontWeight: "600", color: colors.faint },
-  tabLabelActive: { color: "#FFFFFF", fontWeight: "700" },
+  tabDot: { width: 6, height: 6, borderRadius: 3 },
+  tabDotOn: { backgroundColor: "#F08A3A" },
+  tabLabel: { fontSize: 13, fontWeight: "400", color: "#BDB0A4" },
+  tabLabelActive: { color: "#FDF0DE", fontWeight: "600" },
 });

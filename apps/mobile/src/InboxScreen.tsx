@@ -7,9 +7,10 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { fadeInfo, fadeOpacity, platformLabel } from "./lifecycle";
+import { Ember, LifeDots, MeltIcon, MeltTile, daysLeftOf } from "./doodles";
+import { platformLabel } from "./lifecycle";
 import { displayTitle } from "./text";
-import { Text, colors, shadow } from "./theme";
+import { Text, colors, handFont } from "./theme";
 import type { InboxSummary, Save } from "./types";
 
 type Props = {
@@ -20,176 +21,249 @@ type Props = {
   onDecide: (startIndex: number) => void;
 };
 
+const HOUR = 60 * 60 * 1000;
+
+/** "5 h left" on the last day, otherwise "3 days". */
+function timeLeft(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return "";
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= HOUR) return "under 1 h";
+  if (ms < 24 * HOUR) return `${Math.round(ms / HOUR)} h left`;
+  const d = Math.round(ms / (24 * HOUR));
+  return d === 1 ? "1 day" : `${d} days`;
+}
+
+function todayLabel() {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  });
+}
+
 export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Props) {
   const lifespan = summary?.lifespan_days ?? 7;
-  const fading = summary?.fading_24h ?? 0;
+  const rows = items.map((save, index) => ({
+    save,
+    index,
+    days: daysLeftOf(save.expires_at),
+  }));
+  const today = rows.filter((r) => r.days <= 1);
+  const week = rows.filter((r) => r.days > 1);
+
+  function renderRow({ save, index, days }: (typeof rows)[number]) {
+    const urgent = days <= 1;
+    return (
+      <Pressable
+        key={save.id}
+        style={styles.row}
+        onPress={() => onDecide(index)}
+        accessibilityHint="Opens the decision for this save"
+      >
+        <MeltTile daysLeft={days} />
+        <View style={styles.rowBody}>
+          <Text style={styles.title} numberOfLines={1}>
+            {displayTitle(save)}
+          </Text>
+          <Text style={styles.meta}>{platformLabel(save.platform)}</Text>
+          <View style={styles.dotsRow}>
+            <LifeDots daysLeft={days} />
+          </View>
+        </View>
+        <View style={styles.rowEnd}>
+          <Text style={[styles.left, urgent && styles.leftUrgent]}>
+            {timeLeft(save.expires_at)}
+          </Text>
+          {save.source_url ? (
+            <Pressable
+              hitSlop={8}
+              onPress={() => void Linking.openURL(save.source_url!)}
+              accessibilityLabel="Open the original post"
+            >
+              <Text style={styles.open}>Open ↗</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </Pressable>
+    );
+  }
 
   return (
     <ScrollView
+      showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scroll}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={onRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}
     >
-      {items.length > 0 ? (
-        <View style={styles.sortCard}>
-          <View style={styles.sortText}>
-            <Text style={styles.sortTitle}>
-              {fading > 0
-                ? `${fading} ${fading === 1 ? "save fades" : "saves fade"} within a day`
-                : `${items.length} ${items.length === 1 ? "save" : "saves"} waiting`}
-            </Text>
-            <Text style={styles.sortSub}>
-              Did it, plan it, distill it or let it go.
+      <View style={styles.hero}>
+        <Text style={styles.bigNum}>{items.length}</Text>
+        <View style={styles.heroText}>
+          <Text style={styles.heroLabel}>
+            {items.length === 1 ? "SAVE MELTING" : "SAVES MELTING"}
+          </Text>
+          <Text style={styles.heroDate}>{todayLabel()}</Text>
+        </View>
+        <View style={styles.heroEmber}>
+          <Ember pose="peek" size={64} />
+        </View>
+      </View>
+
+      {today.length > 0 ? (
+        <Pressable
+          style={styles.banner}
+          onPress={() => onDecide(today[0].index)}
+          accessibilityRole="button"
+        >
+          <MeltIcon daysLeft={0} size={54} />
+          <View style={styles.bannerText}>
+            <Text style={styles.bannerEyebrow}>melting today</Text>
+            <Text style={styles.bannerTitle}>
+              {today.length} {today.length === 1 ? "save needs" : "saves need"} you
             </Text>
           </View>
-          <Pressable style={styles.sortBtn} onPress={() => onDecide(0)}>
-            <Text style={styles.sortBtnText}>Sort now</Text>
-          </Pressable>
-        </View>
+          <View style={styles.bannerBtn}>
+            <Text style={styles.bannerBtnText}>Save them →</Text>
+          </View>
+        </Pressable>
+      ) : items.length > 0 ? (
+        <Pressable style={styles.sortLink} onPress={() => onDecide(0)}>
+          <Text style={styles.sortLinkText}>Sort now · 2 min</Text>
+          <Text style={styles.sortLinkArrow}>→</Text>
+        </Pressable>
       ) : null}
 
       {loading && items.length === 0 ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.ink} style={{ marginTop: 24 }} />
       ) : null}
 
       {!loading && items.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Inbox zero</Text>
+          <Ember pose="peek" size={90} />
+          <Text style={styles.emptyTitle}>Nothing melting.</Text>
           <Text style={styles.emptyText}>
-            Share anything from Instagram, YouTube or Reddit to Attention Span.
-            It waits here for {lifespan} days, then fades for good unless you act
-            on it.
+            Share anything from Instagram, YouTube or Reddit. You get {lifespan} days
+            to plan it, learn from it, or let it go.
           </Text>
         </View>
       ) : null}
 
-      {items.map((s, i) => {
-        const fade = fadeInfo(s.expires_at, lifespan);
-        return (
-          <Pressable
-            key={s.id}
-            style={[styles.card, { opacity: fadeOpacity(fade.fraction) }]}
-            onPress={() => onDecide(i)}
-          >
-            <View style={styles.cardTop}>
-              <View style={styles.thumb} />
-              <View style={styles.cardBody}>
-                <Text style={styles.meta}>
-                  {platformLabel(s.platform)}
-                </Text>
-                <Text style={styles.title} numberOfLines={2}>
-                  {displayTitle(s)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.lifeRow}>
-              <View style={styles.lifeTrack}>
-                <View
-                  style={[
-                    styles.lifeFill,
-                    fade.urgent && styles.lifeFillUrgent,
-                    { width: `${Math.round(fade.fraction * 100)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.lifeLabel, fade.urgent && styles.lifeLabelUrgent]}>
-                {fade.label}
-              </Text>
-              {s.source_url ? (
-                <Pressable
-                  style={styles.openBtn}
-                  hitSlop={6}
-                  onPress={() => void Linking.openURL(s.source_url!)}
-                  accessibilityLabel="Open the original post"
-                >
-                  <Text style={styles.openBtnText}>Open ↗</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </Pressable>
-        );
-      })}
+      {today.length > 0 ? (
+        <>
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, styles.sectionHot]}>MELTING TODAY</Text>
+            <Text style={[styles.sectionNote, styles.sectionHot]}>act or let go</Text>
+          </View>
+          {today.map(renderRow)}
+        </>
+      ) : null}
+
+      {week.length > 0 ? (
+        <>
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>THIS WEEK</Text>
+            <Text style={styles.sectionNote}>no rush yet</Text>
+          </View>
+          {week.map(renderRow)}
+        </>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingBottom: 120 },
-  sortCard: {
+  scroll: { paddingTop: 10, paddingBottom: 120 },
+  hero: { flexDirection: "row", alignItems: "flex-end", gap: 14 },
+  bigNum: {
+    fontSize: 104,
+    lineHeight: 96,
+    fontWeight: "700",
+    letterSpacing: -6,
+    color: colors.ink,
+  },
+  heroText: { paddingBottom: 8, flexShrink: 1 },
+  heroLabel: { fontSize: 19, fontWeight: "700", letterSpacing: 0.4, color: colors.ink },
+  heroDate: { fontSize: 16, fontWeight: "300", color: colors.muted },
+  heroEmber: { marginLeft: "auto", paddingBottom: 4 },
+  banner: {
+    marginTop: 18,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 16,
-    borderRadius: 24,
-    backgroundColor: colors.ink,
-    marginBottom: 16,
-  },
-  sortText: { flex: 1 },
-  sortTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  sortSub: { color: "#C9C8E0", fontSize: 13, marginTop: 2 },
-  sortBtn: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: colors.peach,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sortBtnText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
-  empty: {
-    marginTop: 8,
-    padding: 20,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.7)",
-  },
-  emptyTitle: { fontSize: 20, fontWeight: "800", color: colors.ink },
-  emptyText: { marginTop: 6, fontSize: 15, lineHeight: 22, color: colors.inkSoft },
-  card: {
-    backgroundColor: colors.surface,
-    padding: 12,
-    borderRadius: 22,
-    marginBottom: 12,
-    ...shadow,
-  },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  thumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.peach,
-  },
-  cardBody: { flex: 1 },
-  meta: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.muted,
-    marginBottom: 2,
-  },
-  title: { fontSize: 15, fontWeight: "700", color: colors.ink, lineHeight: 20 },
-  openBtn: {
-    minHeight: 32,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 999,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: colors.orange,
     backgroundColor: colors.accentTint,
+  },
+  bannerText: { flex: 1, minWidth: 0 },
+  bannerEyebrow: { fontSize: 13, fontWeight: "600", color: colors.orangeDeep },
+  bannerTitle: {
+    fontSize: 21,
+    lineHeight: 24,
+    fontWeight: "300",
+    letterSpacing: -0.4,
+    color: colors.ink,
+  },
+  bannerBtn: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: colors.ink,
     justifyContent: "center",
   },
-  openBtnText: { fontSize: 13, fontWeight: "700", color: colors.accentText },
-  lifeRow: {
-    marginTop: 12,
+  bannerBtnText: { fontSize: 14, fontWeight: "600", color: "#FDF0DE" },
+  sortLink: {
+    marginTop: 18,
+    minHeight: 54,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
   },
-  lifeTrack: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.chip,
-    overflow: "hidden",
+  sortLinkText: { fontSize: 16, fontWeight: "600", color: colors.ink },
+  sortLinkArrow: { fontSize: 18, color: colors.ink },
+  section: {
+    marginTop: 18,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
   },
-  lifeFill: { height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  lifeFillUrgent: { backgroundColor: "#E8835F" },
-  lifeLabel: { fontSize: 12, fontWeight: "600", color: colors.muted },
-  lifeLabelUrgent: { color: "#B54A24" },
+  sectionLabel: { fontSize: 12, fontWeight: "700", letterSpacing: 1, color: colors.muted },
+  sectionNote: { fontSize: 17, fontFamily: handFont, color: colors.muted },
+  sectionHot: { color: colors.orangeDeep },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  rowBody: { flex: 1, minWidth: 0 },
+  title: { fontSize: 15, fontWeight: "500", color: colors.ink },
+  meta: { marginTop: 2, fontSize: 12, color: colors.muted },
+  dotsRow: { marginTop: 6 },
+  rowEnd: { alignItems: "flex-end", gap: 6 },
+  left: { fontSize: 13, fontWeight: "500", color: colors.muted },
+  leftUrgent: { fontWeight: "700", color: colors.orangeDeep },
+  open: { fontSize: 13, fontWeight: "600", color: colors.ink },
+  empty: { marginTop: 24, alignItems: "center", paddingHorizontal: 12 },
+  emptyTitle: {
+    marginTop: 12,
+    fontSize: 30,
+    fontWeight: "300",
+    letterSpacing: -0.8,
+    color: colors.ink,
+  },
+  emptyText: {
+    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "300",
+    textAlign: "center",
+    color: colors.inkSoft,
+  },
 });

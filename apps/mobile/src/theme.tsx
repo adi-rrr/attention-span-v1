@@ -8,52 +8,69 @@ import {
   type TextStyle,
 } from "react-native";
 import {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
-} from "@expo-google-fonts/plus-jakarta-sans";
+  InterTight_300Light,
+  InterTight_400Regular,
+  InterTight_500Medium,
+  InterTight_600SemiBold,
+  InterTight_700Bold,
+  InterTight_800ExtraBold,
+} from "@expo-google-fonts/inter-tight";
+import { GochiHand_400Regular } from "@expo-google-fonts/gochi-hand";
 
-/** "Soft" palette — calm pastel, from the prototypes canvas. */
+/**
+ * "Doodle" palette (Round 3 prototypes): warm cream paper, ink lines, and
+ * orange only where something is melting. Key names are shared with the
+ * earlier theme so every screen picks the new look up.
+ */
 export const colors = {
-  bg: "#EEF0FB",
-  surface: "#FFFFFF",
-  ink: "#1E1B3A",
-  inkSoft: "#3E3B5C",
-  muted: "#5D5A7A",
-  faint: "#6B6990",
-  accent: "#5B5BD6",
-  accentText: "#4B4BC4",
-  accentTint: "#F1F1FF",
-  chip: "#E7E8FA",
-  border: "#D6D8F0",
-  peach: "#FFD3B8",
-  lilac: "#C9CCFF",
-  danger: "#C2364A",
-  dangerTint: "#FCE4E8",
+  bg: "#F2EDE6",
+  surface: "#FBF8F3",
+  stone: "#E6E1DA",
+  ink: "#1C1410",
+  inkSoft: "#3A2D25",
+  muted: "#6B5A50",
+  faint: "#8C7E72",
+  line: "#DCD3C8",
+  accent: "#1C1410",
+  accentText: "#B23F0C",
+  accentTint: "#FFE3CF",
+  chip: "#E6DFD5",
+  border: "#CFC6BB",
+  peach: "#FFD9B8",
+  lilac: "#E6E1DA",
+  orange: "#E2551A",
+  orangeDeep: "#B23F0C",
+  ember: "#FF7A33",
+  cone: "#E8B77A",
+  danger: "#B3261E",
+  dangerTint: "#FBE3DF",
 };
 
+/** Handwritten notes and annotations, like the doodle captions. */
+export const handFont = "GochiHand_400Regular";
+
 export const fontAssets = {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
+  InterTight_300Light,
+  InterTight_400Regular,
+  InterTight_500Medium,
+  InterTight_600SemiBold,
+  InterTight_700Bold,
+  InterTight_800ExtraBold,
+  GochiHand_400Regular,
 };
 
 const FAMILY_BY_WEIGHT: Record<string, string> = {
-  "100": "PlusJakartaSans_400Regular",
-  "200": "PlusJakartaSans_400Regular",
-  "300": "PlusJakartaSans_400Regular",
-  "400": "PlusJakartaSans_400Regular",
-  normal: "PlusJakartaSans_400Regular",
-  "500": "PlusJakartaSans_500Medium",
-  "600": "PlusJakartaSans_600SemiBold",
-  "700": "PlusJakartaSans_700Bold",
-  bold: "PlusJakartaSans_700Bold",
-  "800": "PlusJakartaSans_800ExtraBold",
-  "900": "PlusJakartaSans_800ExtraBold",
+  "100": "InterTight_300Light",
+  "200": "InterTight_300Light",
+  "300": "InterTight_300Light",
+  "400": "InterTight_400Regular",
+  normal: "InterTight_400Regular",
+  "500": "InterTight_500Medium",
+  "600": "InterTight_600SemiBold",
+  "700": "InterTight_700Bold",
+  bold: "InterTight_700Bold",
+  "800": "InterTight_800ExtraBold",
+  "900": "InterTight_800ExtraBold",
 };
 
 /** Custom fonts on Android need one family per weight, so map fontWeight → family. */
@@ -81,10 +98,11 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(
   },
 );
 
+/**
+ * Cards are flat paper with a thin line, not floating shadows. Kept under the
+ * old name so existing `...shadow` card styles switch over.
+ */
 export const shadow = {
-  shadowColor: "#3C3C8C",
-  shadowOpacity: 0.18,
-  shadowRadius: 18,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 4,
+  borderWidth: 1.5,
+  borderColor: colors.line,
 };

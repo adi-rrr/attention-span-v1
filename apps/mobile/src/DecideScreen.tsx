@@ -26,7 +26,8 @@ import {
 } from "./reminders/format";
 import { scheduleLocalReminder } from "./reminders/notifications";
 import { displayTitle } from "./text";
-import { Text, TextInput, colors, shadow } from "./theme";
+import { Ember, LifeDots, MeltIcon, MeltTile, daysLeftOf } from "./doodles";
+import { Text, TextInput, colors, handFont, shadow } from "./theme";
 import type { Folder, KeepMode, Save } from "./types";
 
 type Props = {
@@ -76,7 +77,6 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
   if (!save) {
     return (
       <View style={styles.screen}>
-        <View pointerEvents="none" style={styles.glow} />
         <View style={styles.doneWrap}>
           <Text style={styles.eyebrow}>All sorted</Text>
           <Text style={styles.doneTitle}>
@@ -123,10 +123,10 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
   }
 
   const fade = fadeInfo(save.expires_at, lifespanDays);
+  const days = daysLeftOf(save.expires_at);
 
   return (
     <View style={styles.screen}>
-      <View pointerEvents="none" style={styles.glow} />
       <ScrollView contentContainerStyle={styles.pad}>
         <View style={styles.topRow}>
           <Pressable
@@ -142,10 +142,16 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
           <View style={styles.roundSpacer} />
         </View>
 
+        <View style={[styles.meltCard, days <= 1 && styles.meltCardHot]}>
+          <MeltIcon daysLeft={days} size={150} />
+          {days <= 1 ? <Text style={styles.meltNote}>melting!</Text> : null}
+        </View>
         <View style={styles.card}>
-          <View style={styles.bigThumb} />
           <Text style={styles.meta}>{platformLabel(save.platform)}</Text>
           <Text style={styles.title}>{displayTitle(save)}</Text>
+          <View style={styles.dotsRow}>
+            <LifeDots daysLeft={days} />
+          </View>
           <View style={styles.cardFoot}>
             <Text style={[styles.fade, fade.urgent && styles.fadeUrgent]}>
               {fade.label}
@@ -303,7 +309,6 @@ function KeepStep({
 
   return (
     <View style={styles.screen}>
-      <View pointerEvents="none" style={styles.glow} />
       <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
         <View style={styles.topRow}>
           <Pressable style={styles.roundBtn} onPress={onBack} accessibilityLabel="Back">
@@ -313,8 +318,15 @@ function KeepStep({
           <View style={styles.roundSpacer} />
         </View>
 
+        <View style={styles.doodleRow}>
+          <Ember pose={isPlan ? "calendar" : "write"} size={118} filled={false} />
+          <Text style={styles.doodleNote}>
+            {isPlan ? "give it\na date." : "the post\ncan go."}
+          </Text>
+        </View>
+
         <View style={styles.miniCard}>
-          <View style={styles.thumb} />
+          <MeltTile daysLeft={daysLeftOf(save.expires_at)} size={40} />
           <Text style={styles.miniTitle} numberOfLines={2}>
             {displayTitle(save)}
           </Text>
@@ -322,7 +334,7 @@ function KeepStep({
 
         <View style={styles.questionCard}>
           <View style={styles.tag}>
-            <Text style={styles.tagText}>{isPlan ? "Next step" : "Takeaway"}</Text>
+            <Text style={styles.tagText}>{isPlan ? "NEXT STEP" : "TAKEAWAY"}</Text>
           </View>
           <Text style={styles.question}>{question}</Text>
           {!isPlan ? (
@@ -360,6 +372,8 @@ function KeepStep({
               onValueChange={setKeepLink}
               trackColor={{ true: colors.accent, false: colors.border }}
               thumbColor="#FFFFFF"
+              // react-native-web colours the "on" thumb teal unless told otherwise.
+              {...({ activeThumbColor: "#FFFFFF" } as object)}
               accessibilityLabel="Keep the link to the original"
             />
           </View>
@@ -424,16 +438,6 @@ function KeepStep({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg, overflow: "hidden" },
-  glow: {
-    position: "absolute",
-    top: 60,
-    alignSelf: "center",
-    width: 340,
-    height: 340,
-    borderRadius: 170,
-    backgroundColor: colors.peach,
-    opacity: 0.4,
-  },
   pad: { padding: 20, paddingBottom: 48, flexGrow: 1 },
   topRow: {
     flexDirection: "row",
@@ -445,25 +449,35 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.85)",
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     alignItems: "center",
     justifyContent: "center",
   },
   roundBtnText: { fontSize: 18, color: colors.ink },
   roundSpacer: { width: 44 },
   counter: { fontSize: 14, fontWeight: "700", color: colors.inkSoft },
-  card: {
-    padding: 18,
-    borderRadius: 28,
+  meltCard: {
+    height: 190,
+    borderRadius: 32,
     backgroundColor: colors.surface,
-    ...shadow,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  bigThumb: {
-    height: 150,
-    borderRadius: 20,
-    backgroundColor: colors.peach,
-    marginBottom: 14,
+  meltCardHot: { backgroundColor: colors.accentTint, borderColor: colors.orange },
+  meltNote: {
+    position: "absolute",
+    right: 20,
+    top: 16,
+    fontFamily: handFont,
+    fontSize: 20,
+    color: colors.orangeDeep,
+    transform: [{ rotate: "4deg" }],
   },
+  card: { paddingTop: 16 },
+  dotsRow: { marginTop: 12 },
   meta: {
     fontSize: 12,
     fontWeight: "600",
@@ -471,10 +485,10 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: 4,
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: "800",
-    letterSpacing: -0.4,
+    fontSize: 28,
+    lineHeight: 31,
+    fontWeight: "300",
+    letterSpacing: -0.8,
     color: colors.ink,
   },
   cardFoot: {
@@ -495,7 +509,7 @@ const styles = StyleSheet.create({
   hint: { marginTop: 6, fontSize: 14, lineHeight: 20, color: colors.muted },
   whenValueSmall: { fontSize: 15, fontWeight: "700", color: colors.ink },
   fade: { fontSize: 13, fontWeight: "600", color: colors.muted },
-  fadeUrgent: { color: "#B54A24" },
+  fadeUrgent: { color: "#B23F0C" },
   choicePrompt: {
     marginTop: 20,
     fontSize: 15,
@@ -513,11 +527,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minHeight: 76,
     padding: 14,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     justifyContent: "center",
   },
-  choiceTitle: { fontSize: 17, fontWeight: "800", color: colors.ink },
+  choiceTitle: { fontSize: 17, fontWeight: "600", color: colors.ink },
   choiceSub: { marginTop: 2, fontSize: 12, color: colors.muted },
   textBtn: {
     minHeight: 44,
@@ -537,49 +552,46 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
   disabled: { opacity: 0.4 },
+  doodleRow: { flexDirection: "row", alignItems: "flex-end", gap: 4 },
+  doodleNote: {
+    fontFamily: handFont,
+    fontSize: 20,
+    lineHeight: 21,
+    color: colors.orangeDeep,
+    paddingBottom: 22,
+    transform: [{ rotate: "-4deg" }],
+  },
   miniCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 10,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    marginBottom: 16,
+    gap: 10,
+    marginTop: 6,
+    marginBottom: 10,
   },
   thumb: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.peach },
-  miniTitle: { flex: 1, fontSize: 14, fontWeight: "600", color: colors.ink },
-  questionCard: {
-    padding: 20,
-    borderRadius: 28,
-    backgroundColor: colors.surface,
-    ...shadow,
-  },
-  tag: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: colors.accentTint,
-  },
-  tagText: { fontSize: 12, fontWeight: "600", color: colors.accentText },
+  miniTitle: { flex: 1, fontSize: 13, color: colors.muted },
+  questionCard: { paddingTop: 4 },
+  tag: { alignSelf: "flex-start" },
+  tagText: { fontSize: 12, fontWeight: "600", letterSpacing: 1, color: colors.muted },
   question: {
-    marginTop: 12,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "800",
-    letterSpacing: -0.4,
+    marginTop: 6,
+    fontSize: 30,
+    lineHeight: 33,
+    fontWeight: "300",
+    letterSpacing: -0.9,
     color: colors.ink,
   },
   drafting: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 },
   draftingText: { fontSize: 14, color: colors.muted },
   input: {
     marginTop: 14,
-    minHeight: 104,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: colors.bg,
-    fontSize: 16,
-    lineHeight: 22,
+    minHeight: 72,
+    paddingVertical: 8,
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.ink,
+    fontSize: 21,
+    lineHeight: 27,
+    fontWeight: "300",
     color: colors.ink,
     textAlignVertical: "top",
   },

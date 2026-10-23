@@ -45,9 +45,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#E7E8FA",
+    borderColor: "#E6DFD5",
   },
-  title: { fontSize: 16, fontWeight: "600", color: "#1E1B3A" },
-  meta: { marginTop: 4, fontSize: 13, color: "#5D5A7A" },
-  snippet: { marginTop: 8, fontSize: 14, lineHeight: 20, color: "#3E3B5C" },
+  title: { fontSize: 16, fontWeight: "600", color: "#1C1410" },
+  meta: { marginTop: 4, fontSize: 13, color: "#6B5A50" },
+  snippet: { marginTop: 8, fontSize: 14, lineHeight: 20, color: "#3A2D25" },
 });

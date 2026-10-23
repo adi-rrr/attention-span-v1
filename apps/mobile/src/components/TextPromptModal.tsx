@@ -44,7 +44,7 @@ export function TextPromptModal({
             value={value}
             onChangeText={setValue}
             placeholder={placeholder}
-            placeholderTextColor="#6B6990"
+            placeholderTextColor="#8C7E72"
             autoFocus
           />
           <View style={styles.actions}>
@@ -76,18 +76,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1E1B3A",
+    color: "#1C1410",
     marginBottom: 12,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D6D8F0",
+    borderColor: "#DCD3C8",
     borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: "#FFF",
     fontSize: 16,
-    color: "#1E1B3A",
+    color: "#1C1410",
   },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 },
   btn: {
@@ -97,9 +97,9 @@ const styles = StyleSheet.create({
     minWidth: 96,
     alignItems: "center",
   },
-  ghost: { backgroundColor: "#E7E8FA" },
-  ghostText: { color: "#1E1B3A", fontWeight: "600" },
-  primary: { backgroundColor: "#5B5BD6" },
+  ghost: { backgroundColor: "#E6DFD5" },
+  ghostText: { color: "#1C1410", fontWeight: "600" },
+  primary: { backgroundColor: "#1C1410" },
   primaryText: { color: "#FFF", fontWeight: "600" },
   disabled: { opacity: 0.5 },
 });
