@@ -1,5 +1,10 @@
 import type { FastifyRequest } from "fastify";
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import {
+  createRemoteJWKSet,
+  decodeProtectedHeader,
+  jwtVerify,
+  type JWTVerifyGetKey,
+} from "jose";
 import { query } from "./db.js";
 
 /**
@@ -39,19 +44,26 @@ function issuer(): string {
 
 /**
  * Supabase signs tokens either with the project's asymmetric signing keys
- * (published as JWKS) or, on older projects, with a shared JWT secret.
+ * (published as JWKS) or, on older projects, with a shared JWT secret. The
+ * token's own header says which, so a leftover secret in the environment
+ * (the Vercel integration adds one) can't break the newer keys.
  */
 async function verifyToken(token: string): Promise<{ sub: string; email: string | null }> {
   const options = { issuer: issuer(), audience: "authenticated" };
   const secret = process.env.SUPABASE_JWT_SECRET?.trim();
   try {
-    const { payload } = secret
-      ? await jwtVerify(token, new TextEncoder().encode(secret), options)
-      : await jwtVerify(
-          token,
-          (jwks ??= createRemoteJWKSet(new URL(`${issuer()}/.well-known/jwks.json`))),
-          options,
-        );
+    const { alg } = decodeProtectedHeader(token);
+    const { payload } =
+      alg?.startsWith("HS") && secret
+        ? await jwtVerify(token, new TextEncoder().encode(secret), {
+            ...options,
+            algorithms: ["HS256"],
+          })
+        : await jwtVerify(
+            token,
+            (jwks ??= createRemoteJWKSet(new URL(`${issuer()}/.well-known/jwks.json`))),
+            { ...options, algorithms: ["ES256", "RS256", "EdDSA"] },
+          );
     if (!payload.sub) throw new Error("token has no subject");
     const email = typeof payload.email === "string" ? payload.email.toLowerCase() : null;
     return { sub: payload.sub, email };
