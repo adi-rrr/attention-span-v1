@@ -8,7 +8,16 @@ import { AppState } from "react-native";
  * aren't set, the app runs in local dev mode: no sign-in, and the API trusts
  * the dev user id instead.
  */
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+// Project origin only: a pasted ".../rest/v1/" (the Data API URL) still works.
+function projectOrigin(raw: string | undefined): string | undefined {
+  try {
+    return raw?.trim() ? new URL(raw.trim()).origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const url = projectOrigin(process.env.EXPO_PUBLIC_SUPABASE_URL);
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
 export const authEnabled = Boolean(url && anonKey);
@@ -50,13 +59,13 @@ export function onSessionChange(cb: (session: Session | null) => void) {
   return () => data.subscription.unsubscribe();
 }
 
-/** Plain-English reasons for a failed sign-in step. */
-function friendly(message: string): string {
+/** Plain-English reasons for a failed sign-in step; anything else shows as-is. */
+function friendly(message: string, step: "send" | "verify"): string {
   const m = message.toLowerCase();
-  if (m.includes("signups not allowed") || m.includes("not found") || m.includes("user not")) {
+  if (m.includes("signups not allowed") || m.includes("user not found")) {
     return "This email hasn't been invited yet.";
   }
-  if (m.includes("expired") || m.includes("invalid")) {
+  if (step === "verify" && (m.includes("expired") || m.includes("invalid"))) {
     return "That code didn't work. Check it, or send a new one.";
   }
   if (m.includes("rate") || m.includes("seconds")) {
@@ -75,7 +84,7 @@ export async function sendCode(email: string): Promise<void> {
     email: email.trim().toLowerCase(),
     options: { shouldCreateUser: false },
   });
-  if (error) throw new Error(friendly(error.message));
+  if (error) throw new Error(friendly(error.message, "send"));
 }
 
 export async function verifyCode(email: string, code: string): Promise<void> {
@@ -85,7 +94,7 @@ export async function verifyCode(email: string, code: string): Promise<void> {
     token: code.trim(),
     type: "email",
   });
-  if (error) throw new Error(friendly(error.message));
+  if (error) throw new Error(friendly(error.message, "verify"));
 }
 
 export async function signOut(): Promise<void> {

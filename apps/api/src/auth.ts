@@ -38,8 +38,9 @@ export function requireUserId(req: FastifyRequest): string {
 
 let jwks: JWTVerifyGetKey | null = null;
 
+/** Project origin only: a pasted ".../rest/v1/" (the Data API URL) still works. */
 function issuer(): string {
-  return `${process.env.SUPABASE_URL!.trim().replace(/\/$/, "")}/auth/v1`;
+  return `${new URL(process.env.SUPABASE_URL!.trim()).origin}/auth/v1`;
 }
 
 /**
