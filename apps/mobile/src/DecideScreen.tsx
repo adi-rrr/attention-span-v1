@@ -164,14 +164,16 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        {/* Four equal choices: nothing is pre-picked, the user decides. */}
+        <Text style={styles.choicePrompt}>What will you do with it?</Text>
         <View style={styles.choiceGrid}>
           <Pressable
-            style={[styles.choice, styles.choiceInk]}
+            style={styles.choice}
             onPress={() => void run("done")}
             disabled={busy}
           >
-            <Text style={[styles.choiceTitle, styles.choiceInkText]}>Did it</Text>
-            <Text style={[styles.choiceSub, styles.choiceInkSub]}>Already acted</Text>
+            <Text style={styles.choiceTitle}>Did it</Text>
+            <Text style={styles.choiceSub}>Already acted</Text>
           </Pressable>
           <Pressable
             style={styles.choice}
@@ -190,7 +192,7 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
             <Text style={styles.choiceSub}>Keep the lesson</Text>
           </Pressable>
           <Pressable
-            style={[styles.choice, styles.choiceSoft]}
+            style={styles.choice}
             onPress={() => void run("let_go")}
             disabled={busy}
           >
@@ -494,8 +496,14 @@ const styles = StyleSheet.create({
   whenValueSmall: { fontSize: 15, fontWeight: "700", color: colors.ink },
   fade: { fontSize: 13, fontWeight: "600", color: colors.muted },
   fadeUrgent: { color: "#B54A24" },
+  choicePrompt: {
+    marginTop: 20,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.inkSoft,
+  },
   choiceGrid: {
-    marginTop: 18,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
@@ -509,12 +517,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: "center",
   },
-  choiceInk: { backgroundColor: colors.ink },
-  choiceSoft: { backgroundColor: "rgba(255,255,255,0.6)" },
   choiceTitle: { fontSize: 17, fontWeight: "800", color: colors.ink },
   choiceSub: { marginTop: 2, fontSize: 12, color: colors.muted },
-  choiceInkText: { color: "#FFFFFF" },
-  choiceInkSub: { color: "#C9C8E0" },
   textBtn: {
     minHeight: 44,
     alignItems: "center",

@@ -11,6 +11,8 @@ export type Folder = {
 export type Save = {
   id: string;
   title: string;
+  /** One-line display title (AI-written, or a quick rule-based shortening). */
+  short_title?: string | null;
   platform: string;
   status: string;
   source_url: string | null;
@@ -27,6 +29,7 @@ export type Save = {
   plan_text?: string | null;
   plan_at?: string | null;
   takeaway?: string | null;
+  decided_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };

@@ -10,8 +10,10 @@ import {
   letGo,
   markDone,
   mirror,
+  safeTimezone,
   sweepExpiredSaves,
 } from "../services/lifecycle.js";
+import { fillShortTitles } from "../services/titles.js";
 
 const draftBody = z.object({
   timezone: z.string().optional(),
@@ -32,6 +34,7 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
   app.get("/inbox", async (req) => {
     const userId = requireUserId(req);
     await sweepExpiredSaves(userId, { force: true });
+    await fillShortTitles(userId);
     const { rows } = await query(
       `SELECT ${INBOX_FIELDS}
        FROM saves
@@ -81,12 +84,33 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
   app.get("/journal", async (req) => {
     const userId = requireUserId(req);
     const { rows } = await query(
-      `SELECT id, platform, source_url, title, takeaway, folder_path, decided_at
+      `SELECT id, platform, source_url, title, short_title, takeaway, folder_path,
+              decided_at
        FROM saves
        WHERE user_id = $1 AND status = 'distilled' AND deleted_at IS NULL
        ORDER BY decided_at DESC NULLS LAST
        LIMIT 200`,
       [userId],
+    );
+    return { items: rows };
+  });
+
+  /** What's behind a Mirror count: saves decided this month as done or planned. */
+  app.get("/outcomes", async (req) => {
+    const userId = requireUserId(req);
+    const { kind, tz } = z
+      .object({ kind: z.enum(["done", "planned"]), tz: z.string().optional() })
+      .parse(req.query);
+    const zone = safeTimezone(tz);
+    const { rows } = await query(
+      `SELECT id, platform, source_url, title, short_title, plan_text, plan_at,
+              folder_path, decided_at
+       FROM saves
+       WHERE user_id = $1 AND deleted_at IS NULL AND status = $2::save_status
+         AND decided_at >= (date_trunc('month', now() AT TIME ZONE $3) AT TIME ZONE $3)
+       ORDER BY ${kind === "planned" ? "plan_at ASC NULLS LAST" : "decided_at DESC"}
+       LIMIT 200`,
+      [userId, kind, zone],
     );
     return { items: rows };
   });

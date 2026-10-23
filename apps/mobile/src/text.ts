@@ -23,8 +23,9 @@ export function decodeHtmlEntities(text: string): string {
 
 export function displayTitle(save: {
   title?: string | null;
+  short_title?: string | null;
   source_url?: string | null;
 }): string {
-  const raw = save.title || save.source_url || "Untitled";
+  const raw = save.short_title || save.title || save.source_url || "Untitled";
   return decodeHtmlEntities(raw);
 }

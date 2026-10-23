@@ -10,6 +10,7 @@ const querySchema = z.object({
 type SearchRow = {
   id: string;
   title: string;
+  short_title: string | null;
   platform: string;
   folder_path: string;
   understand_text: string;
@@ -87,6 +88,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       `SELECT
          s.id,
          s.title,
+         s.short_title,
          s.platform::text AS platform,
          s.folder_path,
          s.understand_text,
@@ -105,10 +107,10 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
        FROM saves s
        WHERE s.user_id = $1
          AND s.deleted_at IS NULL
-         AND s.status IN ('understand_done', 'done', 'understand_pending')
+         AND s.status IN ('understand_done', 'done', 'planned', 'distilled', 'inbox')
          AND s.search_document @@ plainto_tsquery('english', $2)
        ORDER BY
-         CASE WHEN s.status = 'understand_pending' THEN 0 ELSE 1 END DESC,
+         CASE WHEN s.status = 'inbox' THEN 0 ELSE 1 END DESC,
          rank DESC,
          s.updated_at DESC
        LIMIT 40`,
@@ -119,7 +121,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       const { match_field, match_snippet } = pickMatchField(q, row);
       return {
         save_id: row.id,
-        title: row.title || "Untitled",
+        title: row.short_title || row.title || "Untitled",
         platform: row.platform,
         folder_path: row.folder_path || "",
         match_snippet,

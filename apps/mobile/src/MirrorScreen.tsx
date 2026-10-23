@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -51,8 +52,15 @@ function buildWeeks(data: Mirror): DayState[][] {
   return weeks;
 }
 
+export type MirrorStat = "done" | "planned" | "distilled";
+
+type Props = {
+  /** Tapping a count shows what's behind it. */
+  onOpenStat: (stat: MirrorStat) => void;
+};
+
 /** This month, honestly: how much of what you saved you acted on. */
-export function MirrorScreen() {
+export function MirrorScreen({ onOpenStat }: Props) {
   const [data, setData] = useState<Mirror | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -156,17 +164,27 @@ export function MirrorScreen() {
       <View style={styles.stats}>
         {(
           [
-            ["did it", data.done, false],
-            ["planned", data.planned, false],
-            ["distilled", data.distilled, false],
-            ["let go", data.let_go, true],
+            ["did it", data.done, "done"],
+            ["planned", data.planned, "planned"],
+            ["distilled", data.distilled, "distilled"],
           ] as const
-        ).map(([label, value, accent]) => (
-          <View key={label} style={styles.stat}>
-            <Text style={[styles.statNum, accent && styles.statNumAccent]}>{value}</Text>
-            <Text style={styles.statLabel}>{label}</Text>
-          </View>
+        ).map(([label, value, stat]) => (
+          <Pressable
+            key={label}
+            style={styles.stat}
+            onPress={() => onOpenStat(stat)}
+            accessibilityRole="button"
+            accessibilityLabel={`${value} ${label}. Show them`}
+          >
+            <Text style={styles.statNum}>{value}</Text>
+            <Text style={styles.statLabel}>{label} ›</Text>
+          </Pressable>
         ))}
+        {/* Let-go saves are deleted by design, so there's nothing to open. */}
+        <View style={styles.stat}>
+          <Text style={[styles.statNum, styles.statNumAccent]}>{data.let_go}</Text>
+          <Text style={styles.statLabel}>let go</Text>
+        </View>
       </View>
       <View style={styles.rule} />
 
@@ -260,7 +278,7 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 14, color: colors.inkSoft },
   rule: { height: 2, backgroundColor: colors.ink, marginVertical: 16 },
   stats: { flexDirection: "row" },
-  stat: { flex: 1 },
+  stat: { flex: 1, minHeight: 56 },
   statNum: { fontSize: 32, fontWeight: "800", color: colors.ink },
   statNumAccent: { color: LET_GO_COLOR },
   statLabel: { fontSize: 14, color: colors.inkSoft },

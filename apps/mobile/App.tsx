@@ -15,6 +15,8 @@ import { InboxScreen } from "./src/InboxScreen";
 import { DecideScreen } from "./src/DecideScreen";
 import { JournalScreen } from "./src/JournalScreen";
 import { MirrorScreen } from "./src/MirrorScreen";
+import { OutcomeListScreen } from "./src/OutcomeListScreen";
+import type { OutcomeKind } from "./src/lifecycle";
 import { SearchScreen } from "./src/SearchScreen";
 import { LibraryScreen } from "./src/LibraryScreen";
 import { SaveDetailScreen } from "./src/SaveDetailScreen";
@@ -54,7 +56,13 @@ const SUBTITLE: Record<Tab, string> = {
 
 export default function App() {
   const [fontsLoaded] = useFonts(fontAssets);
-  const [tab, setTab] = useState<Tab>("inbox");
+  const [tab, setTabState] = useState<Tab>("inbox");
+  // A Mirror count opened as a list ("what you did / planned").
+  const [outcomeKind, setOutcomeKind] = useState<OutcomeKind | null>(null);
+  const setTab = useCallback((next: Tab) => {
+    setOutcomeKind(null);
+    setTabState(next);
+  }, []);
   const [inbox, setInbox] = useState<Save[]>([]);
   const [summary, setSummary] = useState<InboxSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -214,7 +222,20 @@ export default function App() {
         ) : null}
         {tab === "library" ? <LibraryScreen onOpenSave={setDetailSaveId} /> : null}
         {tab === "journal" ? <JournalScreen /> : null}
-        {tab === "mirror" ? <MirrorScreen /> : null}
+        {tab === "mirror" && outcomeKind ? (
+          <OutcomeListScreen
+            kind={outcomeKind}
+            onBack={() => setOutcomeKind(null)}
+            onOpenSave={setDetailSaveId}
+          />
+        ) : null}
+        {tab === "mirror" && !outcomeKind ? (
+          <MirrorScreen
+            onOpenStat={(stat) =>
+              stat === "distilled" ? setTab("journal") : setOutcomeKind(stat)
+            }
+          />
+        ) : null}
         {tab === "search" ? <SearchScreen onOpenSave={setDetailSaveId} /> : null}
       </View>
 

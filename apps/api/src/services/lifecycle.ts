@@ -290,7 +290,8 @@ export async function keepSave(userId: string, saveId: string, input: KeepInput)
 // ---------------------------------------------------------------------------
 // Reads
 
-export const INBOX_FIELDS = `id, platform, status, source_url, title, created_at, expires_at`;
+export const INBOX_FIELDS = `id, platform, status, source_url, title, short_title,
+  created_at, expires_at`;
 
 export async function inboxSummary(userId: string) {
   const settings = await getLifecycleSettings(userId);
@@ -311,7 +312,7 @@ export async function inboxSummary(userId: string) {
 }
 
 /** Valid IANA zone or UTC, so a bad header can't break the query. */
-function safeTimezone(tz: string | undefined): string {
+export function safeTimezone(tz: string | undefined): string {
   if (!tz) return "UTC";
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });

@@ -6,8 +6,9 @@ import { httpError } from "../httpError.js";
 import { resolvePreview } from "../services/preview.js";
 import { cancelReminder } from "../services/reminders.js";
 import { getLifecycleSettings, logSaveEvent } from "../services/lifecycle.js";
+import { aiShortTitle, quickShortTitle } from "../services/titles.js";
 
-const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, user_note,
+const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, short_title, user_note,
               folder_id, folder_path, content_kind, offline_policy,
               expires_at, ai_intent, ai_reason, plan_text, plan_at, takeaway,
               LEFT(regexp_replace(understand_text, E'[\\n\\r]+', ' ', 'g'), 140)
@@ -141,9 +142,11 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     const { lifespanDays } = await getLifecycleSettings(userId);
     const { rows } = await query(
       `INSERT INTO saves (
-         id, user_id, platform, source_url, title, status, expires_at
-       ) VALUES ($1, $2, $3, $4, $5, 'inbox', now() + make_interval(days => $6))
-       RETURNING id, platform, status, source_url, title,
+         id, user_id, platform, source_url, title, status, expires_at,
+         short_title, title_source
+       ) VALUES ($1, $2, $3, $4, $5, 'inbox', now() + make_interval(days => $6),
+                 $7, $8)
+       RETURNING id, platform, status, source_url, title, short_title,
                  user_note, folder_id, folder_path, content_kind, offline_policy,
                  expires_at, created_at, updated_at`,
       [
@@ -153,9 +156,14 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
         body.source_url ?? null,
         title,
         lifespanDays,
+        title ? quickShortTitle(title) : null,
+        title ? "quick" : null,
       ],
     );
     await logSaveEvent(userId, "saved", body.platform);
+    // A model-written one-liner replaces the quick title when it's ready;
+    // GET /inbox fills in any that didn't finish here.
+    if (title) void aiShortTitle(userId, id);
 
     return reply.code(201).send(rows[0]);
   });
@@ -165,7 +173,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
 
     const { rows } = await query(
-      `SELECT s.id, s.platform, s.status, s.source_url, s.title, s.user_note,
+      `SELECT s.id, s.platform, s.status, s.source_url, s.title, s.short_title, s.user_note,
               s.folder_id, s.folder_path, s.content_kind, s.offline_policy,
               s.expires_at, s.ai_intent, s.ai_reason, s.plan_text, s.plan_at, s.takeaway,
               s.created_at, s.updated_at,

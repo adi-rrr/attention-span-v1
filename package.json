@@ -8,7 +8,7 @@
   "scripts": {
     "api": "npm run dev -w apps/api",
     "mobile": "npm run start -w apps/mobile",
-    "db:migrate": "psql \"$DATABASE_URL\" -f db/migrations/001_init.sql -f db/migrations/002_push.sql -f db/migrations/003_lifecycle.sql -f db/migrations/004_lifecycle_backfill.sql",
+    "db:migrate": "psql \"$DATABASE_URL\" -f db/migrations/001_init.sql -f db/migrations/002_push.sql -f db/migrations/003_lifecycle.sql -f db/migrations/004_lifecycle_backfill.sql -f db/migrations/005_short_title.sql",
     "build:vercel": "npm run build:web -w apps/mobile && mkdir -p apps/mobile/dist/about && cp -R apps/web/index.html apps/web/screens apps/mobile/dist/about/",
     "vercel:env": "node scripts/vercel-env.mjs",
     "db:setup:prod": "node scripts/db-setup-prod.mjs"

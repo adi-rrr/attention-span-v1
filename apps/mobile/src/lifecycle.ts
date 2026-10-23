@@ -95,3 +95,12 @@ export function fadeInfo(
 export function fadeOpacity(fraction: number) {
   return 0.45 + 0.55 * fraction;
 }
+
+export type OutcomeKind = "done" | "planned";
+
+/** The saves behind a Mirror count: decided this month as done or planned. */
+export function fetchOutcomes(kind: OutcomeKind, timezone: string) {
+  return api<{ items: Save[] }>(
+    `/outcomes?kind=${kind}&tz=${encodeURIComponent(timezone)}`,
+  );
+}
