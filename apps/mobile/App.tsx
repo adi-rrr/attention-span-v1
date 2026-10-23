@@ -3,13 +3,11 @@ import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
 import { useCallback, useEffect, useState } from "react";
 import {
-  Platform,
   Pressable,
-  SafeAreaView,
-  StatusBar as RNStatusBar,
   StyleSheet,
   View,
 } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Text, colors, fontAssets } from "./src/theme";
 import { InboxScreen } from "./src/InboxScreen";
 import { DecideScreen } from "./src/DecideScreen";
@@ -68,7 +66,16 @@ const SUBTITLE: Record<Tab, string> = {
   search: "Find anything by your own words.",
 };
 
+/** Real per-device insets: status bar, camera cutout and gesture bar. */
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppScreens />
+    </SafeAreaProvider>
+  );
+}
+
+function AppScreens() {
   const [fontsLoaded] = useFonts(fontAssets);
   const [tab, setTabState] = useState<Tab>("inbox");
   // A Mirror count opened as a list ("what you did / planned").
@@ -318,8 +325,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     overflow: "hidden",
-    // SafeAreaView only insets on iOS; push content below the Android status bar.
-    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
   },
   header: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 6 },
   headerRow: {
