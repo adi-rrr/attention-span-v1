@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/bowlby-one": "^0.4.1",
     "@expo-google-fonts/gochi-hand": "^0.4.2",
     "@expo-google-fonts/inter-tight": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

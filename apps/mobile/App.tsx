@@ -36,6 +36,7 @@ import {
   signOut,
 } from "./src/session";
 import { SignInScreen } from "./src/SignInScreen";
+import { WelcomeScreen } from "./src/WelcomeScreen";
 import type { InboxSummary, Save } from "./src/types";
 
 initReminderNotifications();
@@ -94,6 +95,12 @@ function AppScreens() {
   const [toast, setToast] = useState<SaveOutcome | null>(null);
   // null while checking for a saved session; always true in local dev mode.
   const [signedIn, setSignedIn] = useState<boolean | null>(authEnabled ? null : true);
+  // Signed out: the welcome page first, then log in / sign up.
+  const [authView, setAuthView] = useState<"welcome" | "signin">("welcome");
+  useEffect(() => {
+    // After signing out, start again from the welcome page.
+    if (signedIn) setAuthView("welcome");
+  }, [signedIn]);
 
   useEffect(() => {
     if (!authEnabled) return;
@@ -190,7 +197,11 @@ function AppScreens() {
   if (!signedIn) {
     return (
       <SafeAreaView style={styles.safe}>
-        <SignInScreen />
+        {authView === "welcome" ? (
+          <WelcomeScreen onStart={() => setAuthView("signin")} />
+        ) : (
+          <SignInScreen initialMode="signup" onBack={() => setAuthView("welcome")} />
+        )}
         <Toast
           message={toast?.message ?? null}
           ok={toast?.ok}

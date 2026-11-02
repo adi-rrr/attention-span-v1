@@ -16,6 +16,7 @@ import {
   InterTight_800ExtraBold,
 } from "@expo-google-fonts/inter-tight";
 import { GochiHand_400Regular } from "@expo-google-fonts/gochi-hand";
+import { BowlbyOne_400Regular } from "@expo-google-fonts/bowlby-one";
 
 /**
  * "Doodle" palette (Round 3 prototypes): warm cream paper, ink lines, and
@@ -49,6 +50,9 @@ export const colors = {
 /** Handwritten notes and annotations, like the doodle captions. */
 export const handFont = "GochiHand_400Regular";
 
+/** Chunky poster face for the wordmark on the welcome page. */
+export const displayFont = "BowlbyOne_400Regular";
+
 export const fontAssets = {
   InterTight_300Light,
   InterTight_400Regular,
@@ -57,6 +61,7 @@ export const fontAssets = {
   InterTight_700Bold,
   InterTight_800ExtraBold,
   GochiHand_400Regular,
+  BowlbyOne_400Regular,
 };
 
 const FAMILY_BY_WEIGHT: Record<string, string> = {

@@ -5,9 +5,33 @@ import { sendCode, verifyCode } from "./session";
 import { Text, TextInput, colors, handFont } from "./theme";
 
 type Step = "email" | "code";
+export type AuthMode = "login" | "signup";
 
-/** Email → 6-digit code. No passwords; invite-only accounts. */
-export function SignInScreen() {
+type Props = {
+  initialMode?: AuthMode;
+  /** Back to the welcome page. */
+  onBack?: () => void;
+};
+
+const COPY: Record<AuthMode, { title: string; sub: string; fine: string }> = {
+  login: {
+    title: "Log in",
+    sub: "We'll email you a 6-digit code. No password to remember.",
+    fine: "New here? Switch to Sign up and use the email you were invited with.",
+  },
+  signup: {
+    title: "Sign up",
+    sub: "Use the email your invite went to. We'll send a 6-digit code to set up your account.",
+    fine: "Attention Span is invite-only for now. No invite yet? Ask the person who shared it with you.",
+  },
+};
+
+/**
+ * Email → 6-digit code, for both logging in and signing up. Both are
+ * invite-only: an email nobody invited can't create an account.
+ */
+export function SignInScreen({ initialMode = "login", onBack }: Props) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -48,7 +72,39 @@ export function SignInScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
-      <Text style={styles.brand}>attention span</Text>
+      <View style={styles.topRow}>
+        {onBack ? (
+          <Pressable
+            style={styles.backBtn}
+            onPress={step === "code" ? () => setStep("email") : onBack}
+            accessibilityLabel="Back"
+          >
+            <Text style={styles.backText}>←</Text>
+          </Pressable>
+        ) : null}
+        <Text style={styles.brand}>attention span</Text>
+      </View>
+
+      {step === "email" ? (
+        <View style={styles.tabs} accessibilityRole="tablist">
+          {(["login", "signup"] as const).map((m) => (
+            <Pressable
+              key={m}
+              style={[styles.tab, mode === m && styles.tabOn]}
+              onPress={() => {
+                setMode(m);
+                setError(null);
+              }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mode === m }}
+            >
+              <Text style={[styles.tabText, mode === m && styles.tabTextOn]}>
+                {m === "login" ? "Log in" : "Sign up"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.doodle}>
         <Ember pose="peek" size={110} />
         <Text style={styles.note}>
@@ -57,12 +113,10 @@ export function SignInScreen() {
       </View>
 
       <Text style={styles.title}>
-        {step === "email" ? "Sign in" : "Enter your code"}
+        {step === "email" ? COPY[mode].title : "Enter your code"}
       </Text>
       <Text style={styles.sub}>
-        {step === "email"
-          ? "We'll email you a 6-digit code. No password to remember."
-          : (notice ?? "")}
+        {step === "email" ? COPY[mode].sub : (notice ?? "")}
       </Text>
 
       {step === "email" ? (
@@ -115,7 +169,11 @@ export function SignInScreen() {
           <ActivityIndicator color="#FFFFFF" />
         ) : (
           <Text style={styles.primaryText}>
-            {step === "email" ? "Send me a code" : "Sign in"}
+            {step === "email"
+              ? "Send me a code"
+              : mode === "signup"
+                ? "Create my account"
+                : "Log in"}
           </Text>
         )}
       </Pressable>
@@ -137,9 +195,7 @@ export function SignInScreen() {
           </Pressable>
         </View>
       ) : (
-        <Text style={styles.fine}>
-          Attention Span is invite-only for now. Use the email you were invited with.
-        </Text>
+        <Text style={styles.fine}>{COPY[mode].fine}</Text>
       )}
     </ScrollView>
   );
@@ -147,7 +203,37 @@ export function SignInScreen() {
 
 const styles = StyleSheet.create({
   pad: { padding: 22, paddingBottom: 48, flexGrow: 1, backgroundColor: colors.bg },
+  topRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backText: { fontSize: 20, color: colors.ink },
   brand: { fontSize: 17, fontWeight: "500", letterSpacing: -0.2, color: colors.ink },
+  tabs: {
+    marginTop: 20,
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    alignSelf: "flex-start",
+  },
+  tab: {
+    minHeight: 40,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabOn: { backgroundColor: colors.ink },
+  tabText: { fontSize: 15, fontWeight: "600", color: colors.inkSoft },
+  tabTextOn: { color: "#FFFFFF" },
   doodle: { marginTop: 24, flexDirection: "row", alignItems: "flex-end", gap: 10 },
   note: {
     fontFamily: handFont,
