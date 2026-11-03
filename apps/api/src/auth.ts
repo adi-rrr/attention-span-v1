@@ -6,6 +6,7 @@ import {
   type JWTVerifyGetKey,
 } from "jose";
 import { query } from "./db.js";
+import { userIdForShareKey } from "./services/shareKeys.js";
 
 /**
  * Who is calling. With SUPABASE_URL set (the hosted app), every request must
@@ -132,8 +133,29 @@ async function resolveUser(sub: string, email: string | null): Promise<string> {
   return userId;
 }
 
+/**
+ * The phone's background share receiver signs its requests with a device
+ * share key instead of a session token. It may only create saves.
+ */
+async function shareKeyUser(req: FastifyRequest): Promise<string | null> {
+  const key = req.headers["x-share-key"];
+  if (typeof key !== "string" || !key) return null;
+  const path = req.url.split("?")[0] ?? "";
+  if (req.method !== "POST" || !/\/saves\/?$/.test(path)) {
+    throw authError(403, "SHARE_KEY_SCOPE", "A share key can only save new posts.");
+  }
+  const userId = await userIdForShareKey(key);
+  if (!userId) {
+    throw authError(401, "SHARE_KEY_INVALID", "Sign in to Attention Span again to keep sharing.");
+  }
+  return userId;
+}
+
 /** The calling user's id, or null in dev mode when no user header was sent. */
 export async function authenticate(req: FastifyRequest): Promise<string | null> {
+  const viaShareKey = await shareKeyUser(req);
+  if (viaShareKey) return viaShareKey;
+
   // Never fall back to the trust-the-header dev mode on the hosted app.
   if (authMode() === "dev" && process.env.VERCEL) {
     throw authError(503, "AUTH_NOT_CONFIGURED", "Sign-in isn't set up on the server yet.");

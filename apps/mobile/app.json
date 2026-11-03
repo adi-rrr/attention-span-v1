@@ -35,7 +35,6 @@
             "NSExtensionActivationSupportsImageWithMaxCount": 1
           },
           "androidIntentFilters": [
-            "text/*",
             "image/*"
           ]
         }

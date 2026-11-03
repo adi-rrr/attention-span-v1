@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      Invisible share target: catches a shared link, queues a background save
+      and closes at once, so the app the user is scrolling never leaves the
+      screen. Images still go to the main app (expo-share-intent).
+    -->
+    <activity
+      android:name="expo.modules.sharereceiver.ShareReceiverActivity"
+      android:label="Attention Span"
+      android:exported="true"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:taskAffinity=""
+      android:launchMode="standard"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

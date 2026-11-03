@@ -9,6 +9,7 @@ import { searchRoutes } from "./routes/search.js";
 import { reminderRoutes } from "./routes/reminders.js";
 import { pushFireRoutes, pushRoutes } from "./routes/push.js";
 import { lifecycleRoutes } from "./routes/lifecycle.js";
+import { shareKeyRoutes } from "./routes/shareKeys.js";
 import { sweepExpiredSaves } from "./services/lifecycle.js";
 import { authenticate } from "./auth.js";
 
@@ -72,6 +73,7 @@ export async function buildApp(
     pushRoutes,
     pushFireRoutes,
     lifecycleRoutes,
+    shareKeyRoutes,
   ]) {
     await app.register(routes, { prefix });
   }

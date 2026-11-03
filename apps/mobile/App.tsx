@@ -37,6 +37,7 @@ import {
 } from "./src/session";
 import { SignInScreen } from "./src/SignInScreen";
 import { WelcomeScreen } from "./src/WelcomeScreen";
+import { ensureShareKey, forgetShareKey, releaseShareKey } from "./src/share/shareKey";
 import type { InboxSummary, Save } from "./src/types";
 
 initReminderNotifications();
@@ -108,6 +109,7 @@ function AppScreens() {
     const stopSession = onSessionChange((s) => setSignedIn(Boolean(s)));
     // The API said the session is gone (expired or revoked): sign in again.
     const stopRequired = onSignInRequired(() => {
+      forgetShareKey();
       void signOut();
       setSignedIn(false);
     });
@@ -131,6 +133,11 @@ function AppScreens() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    // Signed in: the background share receiver gets its own device key.
+    if (signedIn) void ensureShareKey().catch(() => {});
+  }, [signedIn]);
 
   useEffect(() => {
     if (signedIn) void refresh();
@@ -256,7 +263,7 @@ function AppScreens() {
             {authEnabled ? (
               <Pressable
                 style={styles.signOut}
-                onPress={() => void signOut()}
+                onPress={() => void releaseShareKey().finally(() => void signOut())}
                 accessibilityRole="button"
               >
                 <Text style={styles.signOutText}>Sign out</Text>

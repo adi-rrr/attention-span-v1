@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.attentionspan'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.sharereceiver"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // Background saves that wait for a connection and retry on their own.
+  implementation "androidx.work:work-runtime:2.9.1"
+}

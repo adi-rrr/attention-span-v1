@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import { authEnabled, getAccessToken, notifySignInRequired } from "./session";
 
 // The hosted web app serves the API from the same site under /api.
-const API_URL =
+export const API_URL =
   Platform.OS === "web"
     ? (process.env.EXPO_PUBLIC_WEB_API_URL ?? "/api")
     : (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001");
