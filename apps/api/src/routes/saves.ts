@@ -52,6 +52,16 @@ const patchSaveBody = z.object({
   status: z.enum(["understand_done", "done", "archived"]).optional(),
 });
 
+/** Instagram only for now: other links are turned away with a clear message. */
+function isInstagramUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "instagram.com" || host.endsWith(".instagram.com") || host === "instagr.am";
+  } catch {
+    return false;
+  }
+}
+
 export const savesRoutes: FastifyPluginAsync = async (app) => {
   app.get("/saves", async (req) => {
     const userId = requireUserId(req);
@@ -100,6 +110,13 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
   app.post("/saves", async (req, reply) => {
     const userId = requireUserId(req);
     const body = createSaveBody.parse(req.body);
+
+    if (body.source_url && !isInstagramUrl(body.source_url)) {
+      return reply.code(422).send({
+        error: "Only Instagram posts can be saved for now.",
+        code: "NOT_INSTAGRAM",
+      });
+    }
 
     if (body.source_url) {
       const { rows: existing } = await query(

@@ -67,6 +67,15 @@ export async function scheduleLocalReminder(_input: {
   return ensureReminderPermissions();
 }
 
+/** The web app opens posts in a new tab, so there's nothing to come back from. */
+export async function scheduleReturnNudge(_input: {
+  saveId: string;
+  title: string;
+  fireAt: Date;
+}): Promise<boolean> {
+  return false;
+}
+
 export async function cancelLocalReminder(_saveId: string) {
   // The server skips pushes for cancelled reminders.
 }

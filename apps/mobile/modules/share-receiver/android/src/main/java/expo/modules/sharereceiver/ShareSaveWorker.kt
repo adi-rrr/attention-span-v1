@@ -35,6 +35,7 @@ class ShareSaveWorker(context: Context, params: WorkerParameters) : Worker(conte
           fail(ShareToast.SIGN_IN)
         }
         code == 400 -> fail(ShareToast.BAD_LINK)
+        code == 422 -> fail(ShareToast.ONLY_INSTAGRAM)
         code >= 500 && runAttemptCount < 4 -> Result.retry()
         else -> fail(ShareToast.SERVER)
       }

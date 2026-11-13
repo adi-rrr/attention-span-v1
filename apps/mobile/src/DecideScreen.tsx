@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Linking from "expo-linking";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "./api";
 import { labelOf, useCategories } from "./categories";
 import { CategoryPicker } from "./components/CategoryPicker";
+import { PostViewer } from "./components/PostViewer";
 import { FolderDropdown } from "./components/FolderTreePicker";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import {
@@ -142,6 +142,7 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
   const [patches, setPatches] = useState<Record<string, Partial<Save>>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [viewing, setViewing] = useState<Save | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const pendingRef = useRef<Pending | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -400,10 +401,10 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
               {save.source_url ? (
                 <Pressable
                   style={styles.openBtn}
-                  onPress={() => void Linking.openURL(save.source_url!)}
-                  accessibilityLabel="Open the original post"
+                  onPress={() => setViewing(save)}
+                  accessibilityLabel="View the post"
                 >
-                  <Text style={styles.openBtnText}>View post ↗</Text>
+                  <Text style={styles.openBtnText}>View post</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -445,6 +446,8 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
 
       {pending ? <UndoBar pending={pending} onUndo={undo} /> : null}
       {guideOpen ? <SwipeGuide onClose={closeGuide} /> : null}
+
+      <PostViewer save={viewing} onClose={() => setViewing(null)} />
 
       <CategoryPicker
         visible={pickerOpen}

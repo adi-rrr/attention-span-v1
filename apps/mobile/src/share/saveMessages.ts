@@ -42,6 +42,12 @@ export function failedMessage(err: unknown): SaveOutcome {
         message: "Not saved: open Attention Span and sign in, then share again.",
       };
     }
+    if (body.code === "NOT_INSTAGRAM") {
+      return {
+        ok: false,
+        message: "Not saved: only Instagram posts for now. More apps are coming.",
+      };
+    }
     if (body.code === "NOT_INVITED") {
       return {
         ok: false,

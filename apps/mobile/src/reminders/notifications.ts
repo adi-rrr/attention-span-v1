@@ -66,6 +66,36 @@ export async function scheduleLocalReminder(input: {
   return true;
 }
 
+/**
+ * After the user leaves for Instagram, bring them back to decide. Its own id,
+ * so it never replaces a plan's reminder for the same save.
+ */
+export async function scheduleReturnNudge(input: {
+  saveId: string;
+  title: string;
+  fireAt: Date;
+}): Promise<boolean> {
+  const granted = await ensureReminderPermissions();
+  if (!granted) return false;
+  const identifier = `return-${input.saveId}`;
+  await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
+  await Notifications.scheduleNotificationAsync({
+    identifier,
+    content: {
+      title: "Done with that post?",
+      body: `Come back and decide what to do with "${input.title}".`,
+      data: { saveId: input.saveId },
+      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: input.fireAt,
+      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
+    },
+  });
+  return true;
+}
+
 export async function cancelLocalReminder(saveId: string) {
   await Notifications.cancelScheduledNotificationAsync(identifierFor(saveId));
 }

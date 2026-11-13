@@ -1,4 +1,4 @@
-import * as Linking from "expo-linking";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { PostViewer } from "./components/PostViewer";
 import { Ember, LifeDots, MeltIcon, MeltTile, daysLeftOf } from "./doodles";
 import { platformLabel } from "./lifecycle";
 import { displayTitle } from "./text";
@@ -42,14 +43,18 @@ function todayLabel() {
 }
 
 export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Props) {
+  const [viewing, setViewing] = useState<Save | null>(null);
   const lifespan = summary?.lifespan_days ?? 7;
   const rows = items.map((save, index) => ({
     save,
     index,
     days: daysLeftOf(save.expires_at),
   }));
-  const today = rows.filter((r) => r.days <= 1);
-  const week = rows.filter((r) => r.days > 1);
+  // Places don't fade; they wait until the user is there.
+  const places = rows.filter((r) => !r.save.expires_at);
+  const fading = rows.filter((r) => r.save.expires_at);
+  const today = fading.filter((r) => r.days <= 1);
+  const week = fading.filter((r) => r.days > 1);
 
   function renderRow({ save, index, days }: (typeof rows)[number]) {
     const urgent = days <= 1;
@@ -77,10 +82,10 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
           {save.source_url ? (
             <Pressable
               hitSlop={8}
-              onPress={() => void Linking.openURL(save.source_url!)}
-              accessibilityLabel="Open the original post"
+              onPress={() => setViewing(save)}
+              accessibilityLabel="View the post"
             >
-              <Text style={styles.open}>Open ↗</Text>
+              <Text style={styles.open}>View</Text>
             </Pressable>
           ) : null}
         </View>
@@ -142,7 +147,7 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
           <Ember pose="peek" size={90} />
           <Text style={styles.emptyTitle}>Nothing melting.</Text>
           <Text style={styles.emptyText}>
-            Share anything from Instagram, YouTube or Reddit. You get {lifespan} days
+            Share a post from Instagram. You get {lifespan} days
             to plan it, learn from it, or let it go.
           </Text>
         </View>
@@ -167,6 +172,17 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
           {week.map(renderRow)}
         </>
       ) : null}
+
+      {places.length > 0 ? (
+        <>
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PLACES</Text>
+            <Text style={styles.sectionNote}>back when you're there</Text>
+          </View>
+          {places.map(renderRow)}
+        </>
+      ) : null}
+      <PostViewer save={viewing} onClose={() => setViewing(null)} />
     </ScrollView>
   );
 }
