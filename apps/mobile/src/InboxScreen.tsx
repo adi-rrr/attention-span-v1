@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { PostViewer } from "./components/PostViewer";
-import { Ember, LifeDots, MeltIcon, MeltTile, daysLeftOf } from "./doodles";
+import { Ember, LifeDots, MeltWord, daysLeftOf } from "./doodles";
 import { platformLabel } from "./lifecycle";
 import { displayTitle } from "./text";
 import { Text, colors, handFont } from "./theme";
@@ -65,7 +65,9 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
         onPress={() => onDecide(index)}
         accessibilityHint="Opens the decision for this save"
       >
-        <MeltTile daysLeft={days} />
+        <View style={styles.stage}>
+          <MeltWord daysLeft={days} />
+        </View>
         <View style={styles.rowBody}>
           <Text style={styles.title} numberOfLines={1}>
             {displayTitle(save)}
@@ -118,7 +120,7 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
           onPress={() => onDecide(today[0].index)}
           accessibilityRole="button"
         >
-          <MeltIcon daysLeft={0} size={54} />
+          <MeltWord daysLeft={0} size={30} />
           <View style={styles.bannerText}>
             <Text style={styles.bannerEyebrow}>melting today</Text>
             <Text style={styles.bannerTitle}>
@@ -201,6 +203,7 @@ const styles = StyleSheet.create({
   heroLabel: { fontSize: 19, fontWeight: "700", letterSpacing: 0.4, color: colors.ink },
   heroDate: { fontSize: 16, fontWeight: "300", color: colors.muted },
   heroEmber: { marginLeft: "auto", paddingBottom: 4 },
+  stage: { width: 76 },
   banner: {
     marginTop: 18,
     flexDirection: "row",

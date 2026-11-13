@@ -1,13 +1,13 @@
 import { StyleSheet, View } from "react-native";
-import Svg, { Circle, Ellipse, G, Path, Polygon, Rect } from "react-native-svg";
-import { colors } from "./theme";
+import Svg, { Circle, G, Path, Rect } from "react-native-svg";
+import { Text, colors, handFont } from "./theme";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
 /**
- * Days of life left, on the 7..0 scale the drawings use. 0 means "last
- * hours" (under 12 h), so the final stage reads as a puddle, not a drip.
+ * Days of life left, on a 7..0 scale. 0 means "last
+ * hours" (under 12 h), the puddle stage.
  */
 export function daysLeftOf(expiresAt: string | null | undefined, now = Date.now()): number {
   if (!expiresAt) return 7;
@@ -16,119 +16,30 @@ export function daysLeftOf(expiresAt: string | null | undefined, now = Date.now(
   return Math.max(1, Math.min(7, Math.ceil(left / DAY)));
 }
 
-const FLAME =
-  "M0 -14 C 6 -6, 11 -2, 10 5 C 9 11, 5 14, 0 14 C -5 14, -9 11, -10 5 C -11 -1, -6 -4, -3 -8 C -2 -4, -1 -2, 1 -1 C -1 -6, -2 -10, 0 -14 Z";
-const FLAME_FILLS = ["#FFE3C2", "#FFD0A0", "#FFB877", "#FF9A52", "#FF7A33", "#F05A1A", "#E2551A", "#C9420F"];
+export type MeltStage = "fresh" | "dripping" | "puddle";
 
-/** Geometry for one melt stage: the flame grows as the scoop melts. */
-function meltShape(daysLeft: number) {
-  const k = daysLeft > 0 ? (7 - daysLeft) / 6 : 1.15;
-  const h = 15 * (1 - 0.5 * Math.min(k, 1.15));
-  const w = 11 + 4 * k;
-  const top = 32 - h * 1.33;
-  const l = 26 - w;
-  const r = 26 + w;
-  const f = (n: number) => n.toFixed(1);
-  // Drips are rounded lobes of the scoop itself, so the whole scoop reads as
-  // one soft, sagging blob instead of a lid with sticks.
-  const count = k < 0.2 ? 0 : k < 0.5 ? 1 : k < 0.85 ? 2 : 3;
-  const lobes = [
-    { x: l + 4.5, len: 4 + 8 * k },
-    { x: r - 5, len: 3 + 7 * k },
-    { x: 26.5, len: 5 + 9 * k },
-  ]
-    .slice(0, count)
-    .sort((a, b) => b.x - a.x);
-  let scoop = `M${f(l)} 32 C ${f(l)} ${f(top)}, ${f(r)} ${f(top)}, ${f(r)} 32`;
-  for (const { x, len } of lobes) {
-    const tip = 32 + len;
-    scoop +=
-      ` L${f(x + 3.2)} 32` +
-      ` C ${f(x + 3.4)} ${f(32 + len * 0.6)}, ${f(x + 3.4)} ${f(tip)}, ${f(x)} ${f(tip)}` +
-      ` C ${f(x - 3.4)} ${f(tip)}, ${f(x - 3.4)} ${f(32 + len * 0.6)}, ${f(x - 3.2)} 32`;
-  }
-  scoop += ` L${f(l)} 32 Z`;
-  const puddle = k < 0.3 ? 0 : 3 + (11 * (k - 0.3)) / 0.85;
-  const s = 0.42 + 0.7 * k;
-  return {
-    scoop,
-    puddle,
-    flameY: 56 - 14 * s,
-    flameScale: s,
-    flameFill: FLAME_FILLS[7 - daysLeft],
-  };
+/** The three named stages a save melts through, easier to read than a drawing. */
+export const MELT_STAGES: Record<MeltStage, { color: string; title: string; hint: string }> = {
+  fresh: { color: colors.inkSoft, title: "No rush", hint: "Plenty of time. Enjoy it this week." },
+  dripping: { color: "#9A5B12", title: "Give it a plan", hint: "Pick a date, or keep the one lesson." },
+  puddle: { color: colors.orange, title: "Today, or it's gone", hint: "Act on it, or let it go." },
+};
+
+export function meltStage(daysLeft: number): MeltStage {
+  return daysLeft >= 6 ? "fresh" : daysLeft >= 2 ? "dripping" : "puddle";
 }
 
-/** A waffle cone melting next to Ember. Bigger flame, more melt, less time. */
-export function MeltIcon({ daysLeft, size = 50 }: { daysLeft: number; size?: number }) {
-  const m = meltShape(Math.max(0, Math.min(7, daysLeft)));
-  const label =
-    daysLeft >= 6
-      ? "Fresh scoop, tiny flame: plenty of time"
-      : daysLeft >= 2
-        ? "Scoop dripping, flame growing"
-        : "Scoop melting into a puddle, big flame: act soon";
+/** The stage name in the hand font: fresh, dripping or puddle. */
+export function MeltWord({ daysLeft, size = 22 }: { daysLeft: number; size?: number }) {
+  const stage = meltStage(daysLeft);
   return (
-    <Svg width={size} height={size} viewBox="0 0 60 60" accessibilityLabel={label}>
-      {m.puddle > 0 ? (
-        <Ellipse
-          cx={25}
-          cy={57}
-          rx={m.puddle}
-          ry={m.puddle * 0.22}
-          fill={colors.peach}
-          stroke={colors.ink}
-          strokeWidth={1.3}
-        />
-      ) : null}
-      <Polygon
-        points="18,33 34,33 26,56"
-        fill={colors.cone}
-        stroke={colors.ink}
-        strokeWidth={1.6}
-        strokeLinejoin="round"
-      />
-      <Path
-        d="M21 37 L27 47 M26 34.5 L30.5 42 M31 37 L25 47 M26 34.5 L21.5 42"
-        stroke={colors.ink}
-        strokeWidth={0.9}
-        opacity={0.5}
-      />
-      <Path
-        d={m.scoop}
-        fill={colors.peach}
-        stroke={colors.ink}
-        strokeWidth={1.6}
-        strokeLinejoin="round"
-      />
-      <G transform={`translate(47 ${m.flameY.toFixed(1)}) scale(${m.flameScale.toFixed(2)})`}>
-        <Path
-          d={FLAME}
-          fill={m.flameFill}
-          stroke={colors.ink}
-          strokeWidth={1.6 / m.flameScale}
-          strokeLinejoin="round"
-        />
-        <Circle cx={-3.5} cy={5} r={1.5} fill={colors.ink} />
-        <Circle cx={3.5} cy={5} r={1.5} fill={colors.ink} />
-      </G>
-    </Svg>
-  );
-}
-
-/** Melt icon in its tile: orange when it's melting today. */
-export function MeltTile({ daysLeft, size = 58 }: { daysLeft: number; size?: number }) {
-  const hot = daysLeft <= 1;
-  return (
-    <View
-      style={[
-        styles.tile,
-        { width: size, height: size, borderRadius: size * 0.3 },
-        hot && styles.tileHot,
-      ]}
+    <Text
+      style={[styles.word, { fontSize: size, lineHeight: size * 1.15, color: MELT_STAGES[stage].color }]}
+      accessibilityLabel={`${stage}: ${MELT_STAGES[stage].title}`}
+      numberOfLines={1}
     >
-      <MeltIcon daysLeft={daysLeft} size={size * 0.86} />
-    </View>
+      {stage}
+    </Text>
   );
 }
 
@@ -230,14 +141,7 @@ export function Ember({
 }
 
 const styles = StyleSheet.create({
-  tile: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tileHot: { backgroundColor: colors.accentTint, borderColor: colors.orange },
+  word: { fontFamily: handFont, transform: [{ rotate: "-3deg" }] },
   dots: { flexDirection: "row", gap: 4 },
   dotGone: { borderWidth: 1.5, borderColor: colors.border },
   dotOn: { backgroundColor: colors.ink },

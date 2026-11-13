@@ -37,7 +37,7 @@ import {
 } from "./reminders/format";
 import { scheduleLocalReminder } from "./reminders/notifications";
 import { displayTitle } from "./text";
-import { Ember, LifeDots, MeltIcon, MeltTile, daysLeftOf } from "./doodles";
+import { Ember, LifeDots, MELT_STAGES, MeltWord, daysLeftOf, meltStage } from "./doodles";
 import { Text, TextInput, colors, handFont, shadow } from "./theme";
 import type { CategoryKey, Folder, KeepMode, Save } from "./types";
 
@@ -383,8 +383,9 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
             </View>
 
             <View style={[styles.meltCard, days <= 1 && styles.meltCardHot]}>
-              <MeltIcon daysLeft={days} size={120} />
-              {days <= 1 ? <Text style={styles.meltNote}>melting!</Text> : null}
+              <MeltWord daysLeft={days} size={56} />
+              <Text style={styles.meltTitle}>{MELT_STAGES[meltStage(days)].title}</Text>
+              <Text style={styles.meltHint}>{MELT_STAGES[meltStage(days)].hint}</Text>
             </View>
             <Text style={styles.meta}>
               {platformLabel(save.platform)}
@@ -637,7 +638,7 @@ function KeepStep({
         </View>
 
         <View style={styles.miniCard}>
-          <MeltTile daysLeft={daysLeftOf(save.expires_at)} size={40} />
+          <MeltWord daysLeft={daysLeftOf(save.expires_at)} size={20} />
           <Text style={styles.miniTitle} numberOfLines={2}>
             {displayTitle(save)}
           </Text>
@@ -778,15 +779,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   meltCardHot: { backgroundColor: colors.accentTint, borderColor: colors.orange },
-  meltNote: {
-    position: "absolute",
-    right: 20,
-    top: 16,
-    fontFamily: handFont,
-    fontSize: 20,
-    color: colors.orangeDeep,
-    transform: [{ rotate: "4deg" }],
-  },
+  meltTitle: { marginTop: 4, fontSize: 17, fontWeight: "700", color: colors.ink },
+  meltHint: { marginTop: 2, fontSize: 14, fontWeight: "300", color: colors.inkSoft },
   card: { paddingTop: 16 },
   dotsRow: { marginTop: 12 },
   meta: {

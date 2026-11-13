@@ -78,7 +78,7 @@ const STEPS = [
   },
   {
     title: "Every save gets 7 days",
-    body: "It melts a little each day in your inbox. Untouched saves are gone for good when time's up.",
+    body: "It goes from fresh, to dripping, to a puddle on its last day. Untouched saves are gone for good when time's up.",
   },
   {
     title: "Decide what it's worth",
