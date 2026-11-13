@@ -1,18 +1,31 @@
 import { api } from "./api";
-import type { InboxSummary, KeepDraft, KeepMode, Mirror, Save } from "./types";
+import type {
+  Category,
+  CategoryKey,
+  InboxSummary,
+  KeepDraft,
+  KeepMode,
+  Mirror,
+  Save,
+} from "./types";
 
 export function fetchInbox() {
   return api<{ items: Save[]; summary: InboxSummary }>("/inbox");
 }
 
-export function markDone(saveId: string) {
+/** `decisionMs`: how long the user took to decide, for the sorting estimate. */
+export function markDone(saveId: string, decisionMs?: number) {
   return api<{ id: string; status: string }>(`/saves/${saveId}/done`, {
     method: "POST",
+    body: JSON.stringify({ decision_ms: decisionMs }),
   });
 }
 
-export function letGo(saveId: string) {
-  return api<void>(`/saves/${saveId}/let-go`, { method: "POST" });
+export function letGo(saveId: string, decisionMs?: number) {
+  return api<void>(`/saves/${saveId}/let-go`, {
+    method: "POST",
+    body: JSON.stringify({ decision_ms: decisionMs }),
+  });
 }
 
 /** AI starting point for "Plan it". Takeaways are always the user's own words. */
@@ -33,11 +46,31 @@ export function keepSave(
     folder_id?: string | null;
     timezone?: string;
     keep_link?: boolean;
+    decision_ms?: number;
   },
 ) {
   return api<Save>(`/saves/${saveId}/keep`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function setCategory(saveId: string, category: CategoryKey) {
+  return api<Pick<Save, "id" | "category" | "category_source" | "expires_at">>(
+    `/saves/${saveId}/category`,
+    { method: "PATCH", body: JSON.stringify({ category }) },
+  );
+}
+
+export function fetchCategories() {
+  return api<{ items: Category[] }>("/categories");
+}
+
+/** An empty label resets the category to its default name. */
+export function renameCategory(key: CategoryKey, label: string) {
+  return api<{ items: Category[] }>(`/categories/${key}`, {
+    method: "PUT",
+    body: JSON.stringify({ label }),
   });
 }
 

@@ -96,6 +96,7 @@ type DecidableSave = {
   status: string;
   title: string;
   source_url: string | null;
+  category: string | null;
 };
 
 async function loadSave(
@@ -106,7 +107,7 @@ async function loadSave(
 ): Promise<DecidableSave> {
   const { rows } = await q<DecidableSave>(
     `SELECT id, platform::text AS platform, status::text AS status, title,
-            source_url
+            source_url, category
      FROM saves
      WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
      ${lock ? "FOR UPDATE" : ""}`,
@@ -116,28 +117,54 @@ async function loadSave(
   return rows[0];
 }
 
-export async function markDone(userId: string, saveId: string) {
+/** Longest decision we count: anything over this was the phone left lying. */
+const MAX_DECISION_MS = 2 * 60 * 1000;
+
+/** How long one sorting decision took, for the "about N min" estimate. */
+async function recordDecisionTime(
+  userId: string,
+  category: string | null,
+  ms: number | undefined,
+  q: QueryFn,
+) {
+  if (!ms || ms < 300) return;
+  await q(
+    `INSERT INTO decision_times (user_id, category, ms) VALUES ($1, $2, $3)`,
+    [userId, category ?? "other", Math.min(Math.round(ms), MAX_DECISION_MS)],
+  );
+}
+
+// Deciding on a save confirms the category it was sorted under.
+const CONFIRM_CATEGORY = `category_source = CASE WHEN category IS NULL THEN category_source ELSE 'user' END`;
+
+export async function markDone(userId: string, saveId: string, decisionMs?: number) {
   return withTransaction(async (q) => {
     const save = await loadSave(userId, saveId, q, true);
     if (save.status === "done") return { id: save.id, status: "done" };
     await q(
       `UPDATE saves
-       SET status = 'done', expires_at = NULL, decided_at = now(), updated_at = now()
+       SET status = 'done', expires_at = NULL, decided_at = now(), updated_at = now(),
+           ${CONFIRM_CATEGORY}
        WHERE id = $1`,
       [saveId],
     );
     await cancelReminder(saveId, userId, q);
     await logSaveEvent(userId, "done", save.platform, q);
+    await recordDecisionTime(userId, save.category, decisionMs, q);
     return { id: save.id, status: "done" };
   });
 }
 
 /** Let go = deliberate, permanent delete. Works from the inbox or the shelf. */
-export async function letGo(userId: string, saveId: string) {
+export async function letGo(userId: string, saveId: string, decisionMs?: number) {
   await withTransaction(async (q) => {
     const save = await loadSave(userId, saveId, q, true);
     await q(`DELETE FROM saves WHERE id = $1 AND user_id = $2`, [saveId, userId]);
     await logSaveEvent(userId, "let_go", save.platform, q);
+    // Timed only from the inbox: letting go of a kept plan isn't sorting.
+    if (save.status === "inbox") {
+      await recordDecisionTime(userId, save.category, decisionMs, q);
+    }
   });
 }
 
@@ -192,6 +219,8 @@ export type KeepInput = {
   timezone?: string;
   /** Distill only: false drops the post's link and title, keeping just the takeaway. */
   keep_link?: boolean;
+  /** How long the user took to decide, for the sorting-time estimate. */
+  decision_ms?: number;
 };
 
 export async function keepSave(userId: string, saveId: string, input: KeepInput) {
@@ -250,7 +279,8 @@ export async function keepSave(userId: string, saveId: string, input: KeepInput)
          understand_text = $9,
          source_url = CASE WHEN $10::boolean THEN NULL ELSE source_url END,
          title = CASE WHEN $10::boolean THEN '' ELSE title END,
-         updated_at = now()
+         updated_at = now(),
+         ${CONFIRM_CATEGORY}
        WHERE id = $1 AND user_id = $2
        RETURNING id, status, source_url, title, plan_text, plan_at, takeaway,
                  folder_id, folder_path`,
@@ -281,6 +311,7 @@ export async function keepSave(userId: string, saveId: string, input: KeepInput)
       );
     }
     await logSaveEvent(userId, isPlan ? "planned" : "distilled", save.platform, q);
+    await recordDecisionTime(userId, save.category, input.decision_ms, q);
     return rows[0];
   });
 

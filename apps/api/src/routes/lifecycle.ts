@@ -20,6 +20,10 @@ const draftBody = z.object({
   timezone: z.string().optional(),
 });
 
+const decisionBody = z.object({
+  decision_ms: z.number().int().positive().optional(),
+});
+
 const keepBody = z.object({
   mode: z.enum(["plan", "distill"]),
   plan_text: z.string().max(200).optional(),
@@ -28,6 +32,7 @@ const keepBody = z.object({
   folder_id: z.string().uuid().nullable().optional(),
   timezone: z.string().optional(),
   keep_link: z.boolean().optional(),
+  decision_ms: z.number().int().positive().optional(),
 });
 
 export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
@@ -56,13 +61,15 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
   app.post("/saves/:id/done", async (req) => {
     const userId = requireUserId(req);
     const { id } = req.params as { id: string };
-    return markDone(userId, id);
+    const { decision_ms } = decisionBody.parse(req.body ?? {});
+    return markDone(userId, id, decision_ms);
   });
 
   app.post("/saves/:id/let-go", async (req, reply) => {
     const userId = requireUserId(req);
     const { id } = req.params as { id: string };
-    await letGo(userId, id);
+    const { decision_ms } = decisionBody.parse(req.body ?? {});
+    await letGo(userId, id, decision_ms);
     return reply.code(204).send();
   });
 

@@ -25,6 +25,13 @@ export type Save = {
   reminder_fire_at?: string | null;
   expires_at?: string | null;
   ai_intent?: Intent | null;
+  /** Fixed key that drives expiry; the user sees their own label for it. */
+  category?: CategoryKey | null;
+  /** 'ai' = suggested, 'user' = picked or confirmed while sorting. */
+  category_source?: "ai" | "user" | null;
+  event_at?: string | null;
+  place_name?: string | null;
+  place_country?: string | null;
   ai_reason?: string | null;
   plan_text?: string | null;
   plan_at?: string | null;
@@ -55,6 +62,22 @@ export type SaveDetail = Save & {
 };
 
 export type Intent = "try" | "go" | "buy" | "learn" | "inspo" | "other";
+
+export type CategoryKey =
+  | "place"
+  | "recipe"
+  | "watch"
+  | "read"
+  | "learn"
+  | "tool"
+  | "buy"
+  | "routine"
+  | "quote"
+  | "meme"
+  | "event"
+  | "other";
+
+export type Category = { key: CategoryKey; label: string; default_label: string };
 
 export type InboxSummary = {
   total: number;
