@@ -3,6 +3,8 @@ import { query, withTransaction } from "../db.js";
 import { httpError } from "../httpError.js";
 import { openAiChatJson, parseLooseJson } from "./llm.js";
 import { cancelReminder, upsertReminder } from "./reminders.js";
+import type { CategoryKey } from "./categories.js";
+import { minutesFor, sortSecondsByCategory } from "./estimates.js";
 
 /**
  * Save lifecycle. A shared post lands in the inbox and expires after the
@@ -327,19 +329,41 @@ export const INBOX_FIELDS = `id, platform, status, source_url, title, short_titl
 
 export async function inboxSummary(userId: string) {
   const settings = await getLifecycleSettings(userId);
-  const { rows } = await query<{ total: number; fading_24h: number }>(
-    `SELECT count(*)::int AS total,
-            count(*) FILTER (WHERE expires_at <= now() + interval '24 hours')::int
-              AS fading_24h
-     FROM saves
-     WHERE user_id = $1 AND status = 'inbox' AND deleted_at IS NULL`,
-    [userId],
+  const [{ rows }, { rows: byCategory }, { rows: decisions }, seconds] = await Promise.all([
+    query<{ total: number; fading_24h: number }>(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE expires_at <= now() + interval '24 hours')::int
+                AS fading_24h
+       FROM saves
+       WHERE user_id = $1 AND status = 'inbox' AND deleted_at IS NULL`,
+      [userId],
+    ),
+    query<{ category: string | null; n: number }>(
+      `SELECT category, count(*)::int AS n FROM saves
+       WHERE user_id = $1 AND status = 'inbox' AND deleted_at IS NULL
+       GROUP BY category`,
+      [userId],
+    ),
+    // Any decision ever (not just this month) makes the user "established".
+    query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM save_events
+       WHERE user_id = $1 AND kind IN ('done', 'planned', 'distilled', 'let_go')`,
+      [userId],
+    ),
+    sortSecondsByCategory(userId),
+  ]);
+  const sortSeconds = byCategory.reduce(
+    (sum, r) => sum + r.n * (seconds[(r.category as CategoryKey) ?? "other"] ?? seconds.other),
+    0,
   );
   return {
     total: rows[0]?.total ?? 0,
     fading_24h: rows[0]?.fading_24h ?? 0,
     lifespan_days: settings.lifespanDays,
     digest_hour: settings.digestHour,
+    decisions_total: decisions[0]?.n ?? 0,
+    sort_seconds: sortSeconds,
+    sort_minutes: sortSeconds > 0 ? minutesFor(sortSeconds) : 0,
   };
 }
 
@@ -399,6 +423,17 @@ export async function mirror(userId: string, timezone?: string) {
     [userId],
   );
 
+  // The next few plans, from the start of today, for the Mirror's reminder card.
+  const { rows: upcoming } = await query(
+    `SELECT id, platform, source_url, title, short_title, plan_text, plan_at, category
+     FROM saves
+     WHERE user_id = $1 AND deleted_at IS NULL AND status = 'planned'
+       AND plan_at >= (date_trunc('day', now() AT TIME ZONE $2) AT TIME ZONE $2)
+     ORDER BY plan_at ASC
+     LIMIT 3`,
+    [userId, tz],
+  );
+
   const done = byKind.done ?? 0;
   const planned = byKind.planned ?? 0;
   const distilled = byKind.distilled ?? 0;
@@ -416,6 +451,7 @@ export async function mirror(userId: string, timezone?: string) {
     days,
     shelf_used: shelf[0]?.n ?? 0,
     shelf_limit: settings.shelfLimit,
+    upcoming,
     inbox: await inboxSummary(userId),
   };
 }

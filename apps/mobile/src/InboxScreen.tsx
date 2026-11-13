@@ -126,7 +126,9 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
         </Pressable>
       ) : items.length > 0 ? (
         <Pressable style={styles.sortLink} onPress={() => onDecide(0)}>
-          <Text style={styles.sortLinkText}>Sort now · 2 min</Text>
+          <Text style={styles.sortLinkText}>
+            Sort now · about {summary?.sort_minutes || 1} min
+          </Text>
           <Text style={styles.sortLinkArrow}>→</Text>
         </Pressable>
       ) : null}

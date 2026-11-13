@@ -15,6 +15,7 @@ import {
 } from "../services/lifecycle.js";
 import { fillShortTitles } from "../services/titles.js";
 import { fillCategories } from "../services/categories.js";
+import { sortSecondsByCategory, withSortSeconds } from "../services/estimates.js";
 
 const draftBody = z.object({
   timezone: z.string().optional(),
@@ -41,15 +42,21 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
     const userId = requireUserId(req);
     await sweepExpiredSaves(userId, { force: true });
     await Promise.all([fillShortTitles(userId), fillCategories(userId)]);
-    const { rows } = await query(
-      `SELECT ${INBOX_FIELDS}
-       FROM saves
-       WHERE user_id = $1 AND status = 'inbox' AND deleted_at IS NULL
-       ORDER BY expires_at ASC NULLS LAST, created_at DESC
-       LIMIT 200`,
-      [userId],
-    );
-    return { items: rows, summary: await inboxSummary(userId) };
+    const [{ rows }, seconds] = await Promise.all([
+      query<{ category: string | null }>(
+        `SELECT ${INBOX_FIELDS}
+         FROM saves
+         WHERE user_id = $1 AND status = 'inbox' AND deleted_at IS NULL
+         ORDER BY expires_at ASC NULLS LAST, created_at DESC
+         LIMIT 200`,
+        [userId],
+      ),
+      sortSecondsByCategory(userId),
+    ]);
+    return {
+      items: withSortSeconds(rows, seconds),
+      summary: await inboxSummary(userId),
+    };
   });
 
   app.get("/inbox/summary", async (req) => {

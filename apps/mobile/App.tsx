@@ -1,7 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -45,8 +45,8 @@ initReminderNotifications();
 type Tab = "inbox" | "library" | "journal" | "mirror" | "search";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "inbox", label: "Inbox" },
   { id: "mirror", label: "Mirror" },
+  { id: "inbox", label: "Inbox" },
   { id: "library", label: "Kept" },
   { id: "journal", label: "Journal" },
   { id: "search", label: "Search" },
@@ -94,6 +94,7 @@ function AppScreens() {
   const [decideRequested, setDecideRequested] = useState(false);
   const [detailSaveId, setDetailSaveId] = useState<string | null>(null);
   const [toast, setToast] = useState<SaveOutcome | null>(null);
+  const homeChosen = useRef(false);
   // null while checking for a saved session; always true in local dev mode.
   const [signedIn, setSignedIn] = useState<boolean | null>(authEnabled ? null : true);
   // Signed out: the welcome page first, then log in / sign up.
@@ -126,6 +127,12 @@ function AppScreens() {
       const res = await fetchInbox();
       setInbox(res.items);
       setSummary(res.summary);
+      // Home: new users start on their saves; once they've decided anything,
+      // they land on Mirror to see where they stand. Chosen once per launch.
+      if (!homeChosen.current) {
+        homeChosen.current = true;
+        if (res.summary.decisions_total > 0) setTabState("mirror");
+      }
       void scheduleDailyDigest(res.items, res.summary.digest_hour).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -303,6 +310,9 @@ function AppScreens() {
             onOpenStat={(stat) =>
               stat === "distilled" ? setTab("journal") : setOutcomeKind(stat)
             }
+            onSort={() => (inbox.length > 0 ? setDecideFrom(0) : setTab("inbox"))}
+            onViewReminders={() => setTab("library")}
+            onOpenSave={setDetailSaveId}
           />
         ) : null}
         {tab === "search" ? <SearchScreen onOpenSave={setDetailSaveId} /> : null}

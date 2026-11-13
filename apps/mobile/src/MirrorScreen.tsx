@@ -9,9 +9,10 @@ import {
 } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { fetchMirror } from "./lifecycle";
-import { deviceTimezone } from "./reminders/format";
-import { Text, colors } from "./theme";
-import type { Mirror } from "./types";
+import { deviceTimezone, formatReminderTime } from "./reminders/format";
+import { displayTitle } from "./text";
+import { Text, colors, handFont } from "./theme";
+import type { Mirror, Save } from "./types";
 
 type DayState = "acted" | "faded" | "quiet" | "today" | "future" | "blank";
 
@@ -57,10 +58,45 @@ export type MirrorStat = "done" | "planned" | "distilled";
 type Props = {
   /** Tapping a count shows what's behind it. */
   onOpenStat: (stat: MirrorStat) => void;
+  /** Opens the sorting deck. */
+  onSort: () => void;
+  /** Opens the tab with every plan and its reminder. */
+  onViewReminders: () => void;
+  onOpenSave: (saveId: string) => void;
 };
 
+/**
+ * One honest line under the score: a reality check plus the next step.
+ * Never a made-up statistic; only the user's own numbers.
+ */
+export function pushLine(m: Mirror): string {
+  const waiting = m.inbox.total;
+  const sortBit = waiting
+    ? ` ${waiting} waiting, about ${m.inbox.sort_minutes} min.`
+    : "";
+  if (m.saved === 0 && waiting === 0) {
+    return "Nothing saved this month yet. Share a post when something catches you.";
+  }
+  if (m.acted === 0) {
+    return `Most saves never get opened again. Yours don't have to.${sortBit}`;
+  }
+  const ratio = m.saved > 0 ? m.acted / m.saved : 1;
+  if (ratio < 0.3) {
+    return `${m.acted} of ${m.saved} is a start, and normal early on. Sort a few a day for 3–4 days and you're caught up.`;
+  }
+  if (ratio < 0.6) {
+    return `Solid progress. Sort as saves come in and nothing fades on you.${sortBit}`;
+  }
+  return "You act on most of what you save. That's rare. Keep it going.";
+}
+
+function isToday(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  return new Date(iso).toDateString() === new Date().toDateString();
+}
+
 /** This month, honestly: how much of what you saved you acted on. */
-export function MirrorScreen({ onOpenStat }: Props) {
+export function MirrorScreen({ onOpenStat, onSort, onViewReminders, onOpenSave }: Props) {
   const [data, setData] = useState<Mirror | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +158,14 @@ export function MirrorScreen({ onOpenStat }: Props) {
           {"\n"}saved
         </Text>
       </View>
+
+      <Text style={styles.pushLine}>{pushLine(data)}</Text>
+      <NextCard
+        data={data}
+        onSort={onSort}
+        onViewReminders={onViewReminders}
+        onOpenSave={onOpenSave}
+      />
 
       <View style={styles.weekRow}>
         {WEEKDAYS.map((d, i) => (
@@ -199,6 +243,90 @@ export function MirrorScreen({ onOpenStat }: Props) {
       </Text>
     </ScrollView>
   );
+}
+
+/**
+ * Under the score: today's reminders if there are any; otherwise what's left
+ * to sort, with the next plan underneath.
+ */
+function NextCard({
+  data,
+  onSort,
+  onViewReminders,
+  onOpenSave,
+}: {
+  data: Mirror;
+  onSort: () => void;
+  onViewReminders: () => void;
+  onOpenSave: (saveId: string) => void;
+}) {
+  const today = data.upcoming.filter((s) => isToday(s.plan_at));
+  const waiting = data.inbox.total;
+
+  const planRow = (s: Save) => (
+    <Pressable
+      key={s.id}
+      style={styles.planRow}
+      onPress={() => onOpenSave(s.id)}
+      accessibilityRole="button"
+    >
+      <Text style={styles.planWhen}>{s.plan_at ? formatReminderTime(s.plan_at) : ""}</Text>
+      <Text style={styles.planText} numberOfLines={1}>
+        {s.plan_text || displayTitle(s)}
+      </Text>
+    </Pressable>
+  );
+
+  if (today.length > 0) {
+    return (
+      <View style={styles.nextCard}>
+        <Text style={styles.nextEyebrow}>today</Text>
+        {today.map(planRow)}
+        <Pressable onPress={onViewReminders} style={styles.nextLink} accessibilityRole="button">
+          <Text style={styles.nextLinkText}>View all reminders ›</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (waiting > 0) {
+    return (
+      <View style={styles.nextCard}>
+        <Text style={styles.nextEyebrow}>no reminders today</Text>
+        <Pressable onPress={onSort} style={styles.sortRow} accessibilityRole="button">
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sortTitle}>
+              {waiting} {waiting === 1 ? "save" : "saves"} waiting to be sorted
+            </Text>
+            <Text style={styles.sortSub}>about {data.inbox.sort_minutes} min</Text>
+          </View>
+          <Text style={styles.sortArrow}>Sort now →</Text>
+        </Pressable>
+        {data.upcoming[0] ? (
+          <>
+            <Text style={[styles.nextEyebrow, { marginTop: 12 }]}>next up</Text>
+            {planRow(data.upcoming[0])}
+            <Pressable onPress={onViewReminders} style={styles.nextLink} accessibilityRole="button">
+              <Text style={styles.nextLinkText}>View all reminders ›</Text>
+            </Pressable>
+          </>
+        ) : null}
+      </View>
+    );
+  }
+
+  if (data.upcoming.length > 0) {
+    return (
+      <View style={styles.nextCard}>
+        <Text style={styles.nextEyebrow}>coming up</Text>
+        {data.upcoming.map(planRow)}
+        <Pressable onPress={onViewReminders} style={styles.nextLink} accessibilityRole="button">
+          <Text style={styles.nextLinkText}>View all reminders ›</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  return null;
 }
 
 /** Little hand-drawn flame waving hello. */
@@ -286,4 +414,23 @@ const styles = StyleSheet.create({
   noteRow: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 4 },
   note: { flex: 1, fontSize: 17, lineHeight: 25, fontWeight: "600", color: colors.ink },
   shelf: { marginTop: 18, fontSize: 13, color: colors.muted },
+  pushLine: { marginTop: 14, fontSize: 16, lineHeight: 23, color: colors.inkSoft },
+  nextCard: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.surface,
+  },
+  nextEyebrow: { fontFamily: handFont, fontSize: 18, color: colors.orangeDeep },
+  planRow: { minHeight: 44, justifyContent: "center", paddingVertical: 4 },
+  planWhen: { fontSize: 12, fontWeight: "600", color: colors.muted },
+  planText: { fontSize: 16, fontWeight: "600", color: colors.ink },
+  nextLink: { minHeight: 40, justifyContent: "center", marginTop: 4 },
+  nextLinkText: { fontSize: 14, fontWeight: "700", color: colors.accentText },
+  sortRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
+  sortTitle: { fontSize: 17, fontWeight: "700", color: colors.ink },
+  sortSub: { fontSize: 13, color: colors.muted },
+  sortArrow: { fontSize: 15, fontWeight: "700", color: colors.accentText },
 });

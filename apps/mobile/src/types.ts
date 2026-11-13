@@ -37,6 +37,8 @@ export type Save = {
   plan_at?: string | null;
   takeaway?: string | null;
   decided_at?: string | null;
+  /** Inbox only: estimated seconds to sort it, from its category. */
+  sort_seconds?: number;
   created_at?: string;
   updated_at?: string;
 };
@@ -84,6 +86,11 @@ export type InboxSummary = {
   fading_24h: number;
   lifespan_days: number;
   digest_hour: number;
+  /** Decisions ever made; above zero the user is "established" and lands on Mirror. */
+  decisions_total: number;
+  /** Estimated time to sort the whole inbox. */
+  sort_seconds: number;
+  sort_minutes: number;
 };
 
 export type MirrorDay = { day: string; acted: boolean; faded: boolean };
@@ -103,6 +110,8 @@ export type Mirror = {
   days: MirrorDay[];
   shelf_used: number;
   shelf_limit: number;
+  /** The next few plans from the start of today. */
+  upcoming: Save[];
   inbox: InboxSummary;
 };
 
