@@ -59,6 +59,30 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
+  /**
+   * Place saves in one country, still waiting for a decision. The app
+   * asks when the phone's time zone says the user has arrived somewhere new.
+   */
+  app.get("/places", async (req) => {
+    const userId = requireUserId(req);
+    const { country } = z
+      .object({ country: z.string().regex(/^[A-Za-z]{2}$/) })
+      .parse(req.query);
+    const [{ rows }, seconds] = await Promise.all([
+      query<{ category: string | null }>(
+        `SELECT ${INBOX_FIELDS}
+         FROM saves
+         WHERE user_id = $1 AND status = 'inbox' AND deleted_at IS NULL
+           AND category = 'place' AND place_country = $2
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [userId, country.toUpperCase()],
+      ),
+      sortSecondsByCategory(userId),
+    ]);
+    return { items: withSortSeconds(rows, seconds) };
+  });
+
   app.get("/inbox/summary", async (req) => {
     const userId = requireUserId(req);
     await sweepExpiredSaves(userId, { force: true });

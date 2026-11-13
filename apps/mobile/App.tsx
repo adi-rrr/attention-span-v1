@@ -3,6 +3,7 @@ import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
   Pressable,
   StyleSheet,
   View,
@@ -19,6 +20,8 @@ import { SearchScreen } from "./src/SearchScreen";
 import { LibraryScreen } from "./src/LibraryScreen";
 import { SaveDetailScreen } from "./src/SaveDetailScreen";
 import { Toast } from "./src/components/Toast";
+import { ArrivalSheet } from "./src/components/ArrivalSheet";
+import { checkArrival, countryName, fetchPlaces } from "./src/arrival";
 import { fetchInbox } from "./src/lifecycle";
 import { useShareHandoff } from "./src/share/useShareHandoff";
 import { parseSaveDeepLink } from "./src/share/platform";
@@ -91,6 +94,9 @@ function AppScreens() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [decideFrom, setDecideFrom] = useState<number | null>(null);
+  // The deck's cards when it isn't the whole inbox (e.g. places on arrival).
+  const [decideItems, setDecideItems] = useState<Save[] | null>(null);
+  const [arrival, setArrival] = useState<{ country: string; items: Save[] } | null>(null);
   const [decideRequested, setDecideRequested] = useState(false);
   const [detailSaveId, setDetailSaveId] = useState<string | null>(null);
   const [toast, setToast] = useState<SaveOutcome | null>(null);
@@ -163,6 +169,22 @@ function AppScreens() {
   );
   useShareHandoff(onShareResult);
 
+  // Landed in another country? Offer the place saves from there.
+  useEffect(() => {
+    if (!signedIn) return;
+    async function check() {
+      const country = await checkArrival();
+      if (!country) return;
+      const { items } = await fetchPlaces(country);
+      if (items.length > 0) setArrival({ country: countryName(country), items });
+    }
+    void check().catch(() => {});
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void check().catch(() => {});
+    });
+    return () => sub.remove();
+  }, [signedIn]);
+
   // A tapped digest opens the decision session once the inbox has loaded.
   useEffect(() => {
     if (!decideRequested || loading) return;
@@ -230,11 +252,12 @@ function AppScreens() {
     return (
       <SafeAreaView style={styles.safe}>
         <DecideScreen
-          items={inbox}
+          items={decideItems ?? inbox}
           startIndex={decideFrom}
           lifespanDays={summary?.lifespan_days ?? 7}
           onClose={() => {
             setDecideFrom(null);
+            setDecideItems(null);
             void refresh();
           }}
         />
@@ -322,6 +345,16 @@ function AppScreens() {
         message={toast?.message ?? null}
         ok={toast?.ok}
         onHide={() => setToast(null)}
+      />
+
+      <ArrivalSheet
+        arrival={arrival}
+        onGo={() => {
+          setDecideItems(arrival?.items ?? null);
+          setArrival(null);
+          setDecideFrom(0);
+        }}
+        onLater={() => setArrival(null)}
       />
 
       <View style={styles.tabBar}>
