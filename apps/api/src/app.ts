@@ -10,6 +10,7 @@ import { reminderRoutes } from "./routes/reminders.js";
 import { pushFireRoutes, pushRoutes } from "./routes/push.js";
 import { lifecycleRoutes } from "./routes/lifecycle.js";
 import { shareKeyRoutes } from "./routes/shareKeys.js";
+import { categoryRoutes } from "./routes/categories.js";
 import { sweepExpiredSaves } from "./services/lifecycle.js";
 import { authenticate } from "./auth.js";
 
@@ -27,7 +28,8 @@ export async function buildApp(
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as Error & { statusCode?: number; code?: string };
-    const status = e.statusCode ?? 500;
+    // A request body or params that fail validation is the caller's mistake.
+    const status = e.statusCode ?? (e.name === "ZodError" ? 400 : 500);
     if (status >= 500) app.log.error(e);
     reply.code(status).send({
       error: e.message || "Internal Server Error",
@@ -74,6 +76,7 @@ export async function buildApp(
     pushFireRoutes,
     lifecycleRoutes,
     shareKeyRoutes,
+    categoryRoutes,
   ]) {
     await app.register(routes, { prefix });
   }

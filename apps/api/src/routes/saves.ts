@@ -7,10 +7,12 @@ import { resolvePreview } from "../services/preview.js";
 import { cancelReminder } from "../services/reminders.js";
 import { getLifecycleSettings, logSaveEvent } from "../services/lifecycle.js";
 import { aiShortTitle, quickShortTitle } from "../services/titles.js";
+import { categorizeSave } from "../services/categories.js";
 
 const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, short_title, user_note,
               folder_id, folder_path, content_kind, offline_policy,
               expires_at, ai_intent, ai_reason, plan_text, plan_at, takeaway,
+              category, category_source, event_at, place_name, place_country,
               LEFT(regexp_replace(understand_text, E'[\\n\\r]+', ' ', 'g'), 140)
                 AS understand_snippet,
               EXISTS (
@@ -164,6 +166,8 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     // A model-written one-liner replaces the quick title when it's ready;
     // GET /inbox fills in any that didn't finish here.
     if (title) void aiShortTitle(userId, id);
+    // AI category, event date and place; this also sets the category's expiry.
+    void categorizeSave(userId, id);
 
     return reply.code(201).send(rows[0]);
   });

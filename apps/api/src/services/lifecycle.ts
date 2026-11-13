@@ -291,6 +291,7 @@ export async function keepSave(userId: string, saveId: string, input: KeepInput)
 // Reads
 
 export const INBOX_FIELDS = `id, platform, status, source_url, title, short_title,
+  category, category_source, event_at, place_name, place_country,
   created_at, expires_at`;
 
 export async function inboxSummary(userId: string) {

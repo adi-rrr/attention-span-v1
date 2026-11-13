@@ -14,6 +14,7 @@ import {
   sweepExpiredSaves,
 } from "../services/lifecycle.js";
 import { fillShortTitles } from "../services/titles.js";
+import { fillCategories } from "../services/categories.js";
 
 const draftBody = z.object({
   timezone: z.string().optional(),
@@ -34,7 +35,7 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
   app.get("/inbox", async (req) => {
     const userId = requireUserId(req);
     await sweepExpiredSaves(userId, { force: true });
-    await fillShortTitles(userId);
+    await Promise.all([fillShortTitles(userId), fillCategories(userId)]);
     const { rows } = await query(
       `SELECT ${INBOX_FIELDS}
        FROM saves
