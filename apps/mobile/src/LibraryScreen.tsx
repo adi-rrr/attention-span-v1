@@ -6,10 +6,12 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { Text } from "./theme";
+import { Text, TextInput, colors, handFont, shadow } from "./theme";
 import { api } from "./api";
 import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
+import { platformLabel } from "./lifecycle";
+import { searchSaves, type SearchResult } from "./search";
 import { ActionSheet } from "./components/ActionSheet";
 import { FolderPickerModal } from "./components/FolderPickerModal";
 import { SaveCard } from "./components/SaveCard";
@@ -56,6 +58,31 @@ export function LibraryScreen({ onOpenSave }: Props) {
   const [prompt, setPrompt] = useState<null | "create" | "rename">(null);
   const [picker, setPicker] = useState<null | "move-folder" | "move-save">(null);
   const [reminderSave, setReminderSave] = useState<Save | null>(null);
+
+  // Search lives at the top of Kept; results replace the folders until cleared.
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  async function runSearch() {
+    const term = query.trim();
+    if (!term) return;
+    setSearching(true);
+    setError(null);
+    try {
+      setResults(await searchSaves(term));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Search failed");
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function clearSearch() {
+    setQuery("");
+    setResults(null);
+  }
 
   const currentFolder =
     location.kind === "folder"
@@ -259,111 +286,177 @@ export function LibraryScreen({ onOpenSave }: Props) {
   if (loading && folders.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.nav}>
-        {location.kind !== "root" ? (
-          <Pressable
-            onPress={() =>
-              setLocation(
-                location.kind === "folder" && currentFolder?.parent_id
-                  ? { kind: "folder", id: currentFolder.parent_id }
-                  : { kind: "root" },
-              )
-            }
-          >
-            <Text style={styles.back}>← Back</Text>
-          </Pressable>
-        ) : (
-          <Text style={styles.navTitle}>{heading}</Text>
-        )}
-        <View style={styles.navActions}>
-          {location.kind === "folder" && currentFolder ? (
-            <Pressable onPress={() => setFolderSheet(currentFolder)}>
-              <Text style={styles.navBtn}>⚙</Text>
+      {location.kind === "root" ? (
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search how you'd remember it"
+            placeholderTextColor={colors.faint}
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => void runSearch()}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Search your saves"
+          />
+          {results !== null ? (
+            <Pressable style={styles.pill} onPress={clearSearch}>
+              <Text style={styles.pillText}>Clear</Text>
             </Pressable>
-          ) : null}
-          {canAddSubfolder ? (
-            <Pressable onPress={() => setPrompt("create")}>
-              <Text style={styles.navBtn}>+</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-      {location.kind !== "root" ? (
-        <Text style={styles.heading}>{heading}</Text>
-      ) : null}
-      {currentFolder?.path && location.kind === "folder" ? (
-        <Text style={styles.path}>{currentFolder.path}</Text>
-      ) : null}
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {childFolders.map((f) => (
-          <Pressable
-            key={f.id}
-            style={styles.folderRow}
-            onPress={() => setLocation({ kind: "folder", id: f.id })}
-            onLongPress={() => setFolderSheet(f)}
-            delayLongPress={350}
-          >
-            <Text style={styles.folderName}>📁  {f.name}</Text>
-            <Text style={styles.folderMeta}>
-              {f.save_count ? `${f.save_count}  ` : ""}›
-            </Text>
-          </Pressable>
-        ))}
-
-        {location.kind === "root" ? (
-          <Pressable
-            style={styles.folderRow}
-            onPress={() => setLocation({ kind: "uncategorized" })}
-          >
-            <Text style={styles.folderName}>📁  Uncategorized</Text>
-            <Text style={styles.folderMeta}>
-              {uncategorizedCount ? `${uncategorizedCount}  ` : ""}›
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {location.kind === "root" ? (
-          <>
-            <Text style={styles.section}>Recent</Text>
-            {recent.length === 0 ? (
-              <Text style={styles.empty}>
-                Completed reflections will show up here.
+          ) : (
+            <Pressable
+              style={[styles.pill, styles.pillSolid, !query.trim() && styles.disabled]}
+              onPress={() => void runSearch()}
+              disabled={!query.trim() || searching}
+            >
+              <Text style={[styles.pillText, styles.pillSolidText]}>
+                {searching ? "…" : "Search"}
               </Text>
+            </Pressable>
+          )}
+        </View>
+      ) : null}
+
+      {results !== null ? (
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Text style={styles.section}>RESULTS FOR “{query.trim()}”</Text>
+          {searching ? <ActivityIndicator color={colors.accent} style={{ marginTop: 16 }} /> : null}
+          {!searching && results.length === 0 ? (
+            <Text style={styles.empty}>
+              No matches. Try words from your note or takeaway, like “Tokyo” or “cheap dinner”.
+            </Text>
+          ) : null}
+          {results.map((item) => (
+            <Pressable
+              key={item.save_id}
+              style={styles.result}
+              onPress={() => onOpenSave(item.save_id)}
+            >
+              <Text style={styles.resultMeta}>
+                {platformLabel(item.platform)}
+                {item.folder_path ? ` · ${item.folder_path}` : ""}
+                {item.has_reminder ? " · reminder" : ""}
+              </Text>
+              <Text style={styles.resultTitle} numberOfLines={2}>
+                {displayTitle(item)}
+              </Text>
+              <Text style={styles.resultSnippet} numberOfLines={3}>
+                <Text style={styles.resultField}>{item.match_field}: </Text>
+                {item.match_snippet}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : (
+        <>
+          <View style={styles.nav}>
+            {location.kind !== "root" ? (
+              <Pressable
+                style={styles.pill}
+                onPress={() =>
+                  setLocation(
+                    location.kind === "folder" && currentFolder?.parent_id
+                      ? { kind: "folder", id: currentFolder.parent_id }
+                      : { kind: "root" },
+                  )
+                }
+              >
+                <Text style={styles.pillText}>← Back</Text>
+              </Pressable>
             ) : (
-              recent.map((s) => (
+              <Text style={styles.section}>YOUR FOLDERS</Text>
+            )}
+            <View style={styles.navActions}>
+              {location.kind === "folder" && currentFolder ? (
+                <Pressable style={styles.pill} onPress={() => setFolderSheet(currentFolder)}>
+                  <Text style={styles.pillText}>Edit</Text>
+                </Pressable>
+              ) : null}
+              {canAddSubfolder ? (
+                <Pressable style={styles.pill} onPress={() => setPrompt("create")}>
+                  <Text style={styles.pillText}>+ Folder</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+          {location.kind !== "root" ? (
+            <Text style={styles.heading}>{heading}</Text>
+          ) : null}
+          {currentFolder?.path && location.kind === "folder" ? (
+            <Text style={styles.path}>{currentFolder.path}</Text>
+          ) : null}
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <ScrollView contentContainerStyle={styles.scroll}>
+            {childFolders.map((f) => (
+              <Pressable
+                key={f.id}
+                style={styles.folderRow}
+                onPress={() => setLocation({ kind: "folder", id: f.id })}
+                onLongPress={() => setFolderSheet(f)}
+                delayLongPress={350}
+              >
+                <Text style={styles.folderName} numberOfLines={1}>{f.name}</Text>
+                <Text style={styles.folderCount}>{f.save_count || ""}</Text>
+                <Text style={styles.folderMeta}>›</Text>
+              </Pressable>
+            ))}
+
+            {location.kind === "root" ? (
+              <Pressable
+                style={styles.folderRow}
+                onPress={() => setLocation({ kind: "uncategorized" })}
+              >
+                <Text style={styles.folderName}>Uncategorized</Text>
+                <Text style={styles.folderCount}>{uncategorizedCount || ""}</Text>
+                <Text style={styles.folderMeta}>›</Text>
+              </Pressable>
+            ) : null}
+
+            {location.kind === "root" ? (
+              <>
+                <Text style={[styles.section, styles.sectionGap]}>RECENT</Text>
+                {recent.length === 0 ? (
+                  <Text style={styles.empty}>
+                    Completed reflections will show up here.
+                  </Text>
+                ) : (
+                  recent.map((s) => (
+                    <SaveCard
+                      key={s.id}
+                      save={s}
+                      showFolderPath
+                      onPress={() => onOpenSave(s.id)}
+                      onLongPress={() => setSaveSheet(s)}
+                    />
+                  ))
+                )}
+              </>
+            ) : saves.length === 0 && childFolders.length === 0 ? (
+              <Text style={styles.empty}>Nothing in this folder yet.</Text>
+            ) : (
+              saves.map((s) => (
                 <SaveCard
                   key={s.id}
                   save={s}
-                  showFolderPath
                   onPress={() => onOpenSave(s.id)}
                   onLongPress={() => setSaveSheet(s)}
                 />
               ))
             )}
-          </>
-        ) : saves.length === 0 && childFolders.length === 0 ? (
-          <Text style={styles.empty}>Nothing in this folder yet.</Text>
-        ) : (
-          saves.map((s) => (
-            <SaveCard
-              key={s.id}
-              save={s}
-              onPress={() => onOpenSave(s.id)}
-              onLongPress={() => setSaveSheet(s)}
-            />
-          ))
-        )}
-      </ScrollView>
+          </ScrollView>
+        </>
+      )}
 
       <ActionSheet
         visible={folderSheet !== null && prompt === null && picker === null}
@@ -524,46 +617,75 @@ export function LibraryScreen({ onOpenSave }: Props) {
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    borderBottomWidth: 1.5,
+    borderBottomColor: colors.ink,
+    fontSize: 18,
+    fontWeight: "300",
+    color: colors.ink,
+  },
   nav: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 10,
   },
-  navTitle: { fontSize: 18, fontWeight: "700", color: "#1C1410" },
-  back: { fontSize: 16, color: "#1C1410", fontWeight: "600" },
-  navActions: { flexDirection: "row", gap: 16, alignItems: "center" },
-  navBtn: { fontSize: 22, color: "#1C1410", fontWeight: "600" },
+  navActions: { flexDirection: "row", gap: 8, alignItems: "center" },
+  pill: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    justifyContent: "center",
+  },
+  pillText: { fontSize: 13, fontWeight: "600", color: colors.ink },
+  pillSolid: { backgroundColor: colors.ink },
+  pillSolidText: { color: "#FFFFFF" },
+  disabled: { opacity: 0.4 },
   heading: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1C1410",
-    marginBottom: 2,
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: "300",
+    letterSpacing: -0.9,
+    color: colors.ink,
   },
-  path: { fontSize: 13, color: "#6B5A50", marginBottom: 8 },
-  error: { color: "#B3261E", marginBottom: 8 },
-  scroll: { paddingBottom: 32 },
+  path: { fontFamily: handFont, fontSize: 18, color: colors.orangeDeep, marginBottom: 8 },
+  error: { color: colors.danger, marginBottom: 8 },
+  scroll: { paddingBottom: 120 },
   folderRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FBF8F3",
+    gap: 10,
     paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#E6DFD5",
+    borderTopWidth: 1.5,
+    borderTopColor: colors.ink,
   },
-  folderName: { fontSize: 16, fontWeight: "600", color: "#1C1410", flex: 1 },
-  folderMeta: { fontSize: 15, color: "#8C7E72" },
-  section: {
-    marginTop: 18,
-    marginBottom: 10,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#6B5A50",
-
+  folderName: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: "300",
+    letterSpacing: -0.3,
+    color: colors.ink,
   },
-  empty: { fontSize: 15, lineHeight: 22, color: "#6B5A50", marginTop: 8 },
+  folderCount: { fontFamily: handFont, fontSize: 20, color: colors.orangeDeep },
+  folderMeta: { fontSize: 18, color: colors.faint },
+  section: { fontSize: 12, fontWeight: "600", letterSpacing: 1, color: colors.muted },
+  sectionGap: { marginTop: 26, marginBottom: 12 },
+  empty: { fontSize: 15, lineHeight: 22, fontWeight: "300", color: colors.inkSoft, marginTop: 8 },
+  result: {
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    marginTop: 12,
+    ...shadow,
+  },
+  resultMeta: { fontSize: 12, fontWeight: "600", color: colors.muted },
+  resultTitle: { marginTop: 2, fontSize: 16, lineHeight: 21, fontWeight: "700", color: colors.ink },
+  resultSnippet: { marginTop: 6, fontSize: 14, lineHeight: 20, fontWeight: "300", color: colors.inkSoft },
+  resultField: { fontFamily: handFont, fontSize: 16, color: colors.orangeDeep },
 });

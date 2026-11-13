@@ -16,7 +16,6 @@ import { JournalScreen } from "./src/JournalScreen";
 import { MirrorScreen } from "./src/MirrorScreen";
 import { OutcomeListScreen } from "./src/OutcomeListScreen";
 import type { OutcomeKind } from "./src/lifecycle";
-import { SearchScreen } from "./src/SearchScreen";
 import { LibraryScreen } from "./src/LibraryScreen";
 import { SaveDetailScreen } from "./src/SaveDetailScreen";
 import { Toast } from "./src/components/Toast";
@@ -45,14 +44,13 @@ import type { InboxSummary, Save } from "./src/types";
 
 initReminderNotifications();
 
-type Tab = "inbox" | "library" | "journal" | "mirror" | "search";
+type Tab = "inbox" | "library" | "journal" | "mirror";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "mirror", label: "Mirror" },
   { id: "inbox", label: "Inbox" },
   { id: "library", label: "Kept" },
   { id: "journal", label: "Journal" },
-  { id: "search", label: "Search" },
 ];
 
 const TITLE: Record<Tab, string> = {
@@ -60,15 +58,13 @@ const TITLE: Record<Tab, string> = {
   library: "Kept",
   journal: "Journal",
   mirror: "Mirror",
-  search: "Search",
 };
 
 const SUBTITLE: Record<Tab, string> = {
   inbox: "Save freely. Decide what earns your attention.",
-  library: "Plans, takeaways and what you've done.",
+  library: "What you kept, and a way to find it again.",
   journal: "What you actually took from what you saved.",
   mirror: "What you consumed, honestly.",
-  search: "Find anything by your own words.",
 };
 
 /** Real per-device insets: status bar, camera cutout and gesture bar. */
@@ -338,7 +334,6 @@ function AppScreens() {
             onOpenSave={setDetailSaveId}
           />
         ) : null}
-        {tab === "search" ? <SearchScreen onOpenSave={setDetailSaveId} /> : null}
       </View>
 
       <Toast
