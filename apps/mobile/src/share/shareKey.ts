@@ -11,7 +11,14 @@ import {
  * shares save in the background without opening the app. Android only.
  */
 export async function ensureShareKey(): Promise<void> {
-  if (!backgroundSharingAvailable || getShareKey()) return;
+  if (!backgroundSharingAvailable) return;
+  const existing = getShareKey();
+  if (existing) {
+    // The API address can change (a new build, or the dev Mac's IP), so
+    // refresh it every launch or background shares go to a dead address.
+    setShareKey(existing, API_URL);
+    return;
+  }
   const { key } = await api<{ key: string }>("/share-keys", { method: "POST" });
   setShareKey(key, API_URL);
 }
