@@ -86,7 +86,6 @@ type FireRow = {
   save_id: string;
   title: string | null;
   source_url: string | null;
-  qa_pairs: { question?: string; answer?: string }[] | null;
 };
 
 /** Sends the push for one reminder if it is still scheduled. Returns devices reached. */
@@ -94,10 +93,9 @@ export async function fireReminder(reminderId: string): Promise<number> {
   if (!ensureVapid()) throw httpError(503, "Push is not configured");
 
   const { rows } = await query<FireRow>(
-    `SELECT r.id, r.user_id, r.save_id, s.title, s.source_url, us.qa_pairs
+    `SELECT r.id, r.user_id, r.save_id, s.title, s.source_url
      FROM reminders r
      JOIN saves s ON s.id = r.save_id AND s.deleted_at IS NULL
-     LEFT JOIN understand_sessions us ON us.save_id = r.save_id
      WHERE r.id = $1 AND r.status = 'scheduled' AND r.deleted_at IS NULL
      LIMIT 1`,
     [reminderId],
@@ -106,12 +104,9 @@ export async function fireReminder(reminderId: string): Promise<number> {
   // Cancelled, rescheduled (new row) or already sent: nothing to do.
   if (!reminder) return 0;
 
-  const firstAnswer = reminder.qa_pairs?.find((p) => p.answer?.trim())?.answer;
   const payload = JSON.stringify({
     title: reminder.title || reminder.source_url || "Attention Span",
-    body: firstAnswer
-      ? `You saved this because: “${firstAnswer.trim()}”`
-      : "You wanted to come back to this.",
+    body: "You wanted to come back to this.",
     saveId: reminder.save_id,
   });
 

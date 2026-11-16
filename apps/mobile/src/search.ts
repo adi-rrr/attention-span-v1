@@ -8,7 +8,6 @@ export type SearchResult = {
   match_snippet: string;
   match_field: "understand" | "note" | "folder" | "title";
   has_reminder: boolean;
-  has_map_pin: boolean;
   content_kind: string | null;
 };
 

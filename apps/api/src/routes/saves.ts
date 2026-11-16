@@ -198,7 +198,6 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
               s.folder_id, s.folder_path, s.content_kind, s.offline_policy,
               s.expires_at, s.ai_intent, s.ai_reason, s.plan_text, s.plan_at, s.takeaway,
               s.created_at, s.updated_at,
-              COALESCE(us.qa_pairs, '[]'::jsonb) AS qa_pairs,
               CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object(
                 'id', r.id,
                 'save_id', r.save_id,
@@ -209,7 +208,6 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
                 'timezone', r.timezone
               ) END AS reminder
        FROM saves s
-       LEFT JOIN understand_sessions us ON us.save_id = s.id
        LEFT JOIN LATERAL (
          SELECT id, save_id, fire_at, status, delivery, created_from, timezone
          FROM reminders

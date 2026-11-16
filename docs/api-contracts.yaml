@@ -13,12 +13,9 @@ servers:
 tags:
   - name: me
   - name: saves
-  - name: understand
   - name: folders
   - name: search
   - name: reminders
-  - name: map
-
 components:
   securitySchemes:
     bearerAuth:
@@ -59,14 +56,6 @@ components:
       type: string
       enum: [full, light]
 
-    QaPair:
-      type: object
-      properties:
-        question: { type: string }
-        answer: { type: string }
-        asked_at: { type: string, format: date-time }
-        answered_at: { type: string, format: date-time, nullable: true }
-
     Folder:
       type: object
       required: [id, name, depth, path, parent_id]
@@ -95,17 +84,11 @@ components:
           allOf: [{ $ref: "#/components/schemas/ContentKind" }]
           nullable: true
         offline_policy: { $ref: "#/components/schemas/OfflinePolicy" }
-        understand_skipped: { type: boolean, default: false }
-        understand_snippet: { type: string }
-        qa_pairs:
-          type: array
-          items: { $ref: "#/components/schemas/QaPair" }
         has_reminder: { type: boolean }
         reminder_fire_at: { type: string, format: date-time, nullable: true }
         reminder:
           allOf: [{ $ref: "#/components/schemas/Reminder" }]
           nullable: true
-        has_map_pin: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -135,76 +118,6 @@ components:
           description: Required true when resolving duplicate URL popup with Replace
           default: false
 
-    UnderstandStartResponse:
-      type: object
-      required: [session_id, status, question, ai_turn_count, skips_remaining]
-      properties:
-        session_id: { type: string, format: uuid }
-        status:
-          type: string
-          enum: [pending, in_progress, completed, skipped]
-        question: { type: string }
-        ai_turn_count: { type: integer }
-        skips_remaining: { type: integer }
-        can_skip: { type: boolean }
-
-    UnderstandAnswerRequest:
-      type: object
-      required: [answer]
-      properties:
-        answer: { type: string, minLength: 1 }
-
-    UnderstandAnswerResponse:
-      type: object
-      required: [done]
-      properties:
-        done: { type: boolean }
-        next_question: { type: string, nullable: true }
-        ai_turn_count: { type: integer }
-        suggestions:
-          type: object
-          properties:
-            reminder:
-              type: object
-              nullable: true
-              properties:
-                suggested_fire_at: { type: string, format: date-time }
-                label: { type: string }
-            map_pin:
-              type: object
-              nullable: true
-              properties:
-                label: { type: string }
-                lat: { type: number }
-                lng: { type: number }
-
-    UnderstandCompleteRequest:
-      type: object
-      properties:
-        folder_id: { type: string, format: uuid, nullable: true }
-        content_kind: { $ref: "#/components/schemas/ContentKind" }
-        user_note: { type: string, nullable: true }
-        reminder:
-          type: object
-          nullable: true
-          properties:
-            fire_at: { type: string, format: date-time }
-            delivery:
-              type: string
-              enum: [in_app, calendar, both]
-              default: in_app
-            calendar_provider:
-              type: string
-              enum: [apple, google]
-              nullable: true
-        map_pin:
-          type: object
-          nullable: true
-          properties:
-            lat: { type: number }
-            lng: { type: number }
-            label: { type: string }
-
     SearchResult:
       type: object
       required: [save_id, title, platform, match_snippet, match_field]
@@ -218,7 +131,6 @@ components:
           type: string
           enum: [understand, note, folder, title]
         has_reminder: { type: boolean }
-        has_map_pin: { type: boolean }
         content_kind:
           allOf: [{ $ref: "#/components/schemas/ContentKind" }]
           nullable: true
@@ -230,9 +142,6 @@ components:
       type: object
       properties:
         timezone: { type: string }
-        skips_remaining: { type: integer }
-        max_skips: { type: integer }
-        skip_window_days: { type: integer }
         max_folder_depth: { type: integer }
         default_reminder_hour: { type: integer }
         notifications_enabled: { type: boolean }
@@ -253,27 +162,6 @@ components:
           type: string
           enum: [apple, google]
           nullable: true
-
-    MapPin:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        save_id: { type: string, format: uuid }
-        lat: { type: number }
-        lng: { type: number }
-        label: { type: string }
-        source:
-          type: string
-          enum: [user_answer, geocoded, manual_adjust]
-
-    SyncConflict:
-      type: object
-      description: Multi-device conflict — client shows Confirm / Discard
-      properties:
-        entity_type: { type: string }
-        entity_id: { type: string, format: uuid }
-        local_preview: { type: object }
-        server_preview: { type: object }
 
 security:
   - bearerAuth: []
@@ -296,7 +184,7 @@ paths:
   /me:
     get:
       tags: [me]
-      summary: Current user profile + settings + skip quota
+      summary: Current user profile + settings
       responses:
         "200":
           description: Current user
@@ -314,7 +202,7 @@ paths:
   /me/settings:
     get:
       tags: [me]
-      summary: Settings and skip quota
+      summary: Settings
       responses:
         "200":
           description: Settings
@@ -362,7 +250,7 @@ paths:
           schema: { $ref: "#/components/schemas/Platform" }
         - name: inbox
           in: query
-          description: If true, only understand_pending / skipped
+          description: If true, only saves still in the inbox
           schema: { type: boolean }
       responses:
         "200":
@@ -439,85 +327,6 @@ paths:
       responses:
         "204":
           description: Deleted
-
-  /saves/{id}/understand/start:
-    post:
-      tags: [understand]
-      summary: Start or resume Understand session
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        "200":
-          description: First / next question
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/UnderstandStartResponse" }
-
-  /saves/{id}/understand/answer:
-    post:
-      tags: [understand]
-      summary: Submit answer; get next question or suggestions
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UnderstandAnswerRequest" }
-      responses:
-        "200":
-          description: Continue or ready to complete
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/UnderstandAnswerResponse" }
-
-  /saves/{id}/understand/complete:
-    post:
-      tags: [understand]
-      summary: Finish Understand — content_kind, folder, reminder, map (after last Q)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UnderstandCompleteRequest" }
-      responses:
-        "200":
-          description: Completed
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Save" }
-
-  /saves/{id}/understand/skip:
-    post:
-      tags: [understand]
-      summary: Answer later (consumes skip quota if available)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        "200":
-          description: Skipped; save stays in Inbox for revisit
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  skips_remaining: { type: integer }
-                  save: { $ref: "#/components/schemas/Save" }
-        "403":
-          description: Skip quota exhausted
 
   /folders:
     get:
@@ -676,96 +485,3 @@ paths:
       responses:
         "204":
           description: Cancelled
-
-  /map/pins:
-    get:
-      tags: [map]
-      summary: Pins in viewport (place-type saves)
-      parameters:
-        - name: west
-          in: query
-          schema: { type: number }
-        - name: south
-          in: query
-          schema: { type: number }
-        - name: east
-          in: query
-          schema: { type: number }
-        - name: north
-          in: query
-          schema: { type: number }
-      responses:
-        "200":
-          description: Pins
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: "#/components/schemas/MapPin" }
-
-  /saves/{id}/map-pin:
-    post:
-      tags: [map]
-      summary: Create or adjust map pin
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [lat, lng]
-              properties:
-                lat: { type: number }
-                lng: { type: number }
-                label: { type: string }
-                source:
-                  type: string
-                  enum: [user_answer, geocoded, manual_adjust]
-      responses:
-        "200":
-          description: Pin
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/MapPin" }
-
-  /sync/push:
-    post:
-      tags: [me]
-      summary: Push pending local changes; may return conflicts
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                changes:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      entity_type: { type: string }
-                      entity_id: { type: string, format: uuid }
-                      revision: { type: integer }
-                      payload: { type: object }
-      responses:
-        "200":
-          description: Applied and/or conflicts
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  applied:
-                    type: array
-                    items: { type: string, format: uuid }
-                  conflicts:
-                    type: array
-                    items: { $ref: "#/components/schemas/SyncConflict" }

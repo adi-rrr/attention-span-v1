@@ -70,30 +70,16 @@ export function parseShareIntent(input: {
   return null;
 }
 
-/** Deep link: attentionspan://understand/{saveId} or attentionspan://save/{saveId} */
-export function parseAppDeepLink(
-  url: string,
-): { kind: "understand" | "save"; id: string } | null {
+/** Deep link: attentionspan://save/{saveId} → the save id. */
+export function parseSaveDeepLink(url: string): string | null {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "attentionspan:") return null;
     const parts = parsed.pathname.replace(/^\//, "").split("/");
-    const kind =
-      parsed.hostname === "understand" || parts[0] === "understand"
-        ? "understand"
-        : parsed.hostname === "save" || parts[0] === "save"
-          ? "save"
-          : null;
-    if (!kind) return null;
-    const id =
-      parsed.hostname === kind ? parts[0] : parts[1];
-    return id ? { kind, id } : null;
+    if (parsed.hostname === "save") return parts[0] || null;
+    if (parts[0] === "save") return parts[1] || null;
+    return null;
   } catch {
     return null;
   }
-}
-
-export function parseSaveDeepLink(url: string): string | null {
-  const parsed = parseAppDeepLink(url);
-  return parsed?.kind === "save" ? parsed.id : null;
 }

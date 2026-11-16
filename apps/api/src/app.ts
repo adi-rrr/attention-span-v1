@@ -4,7 +4,6 @@ import { healthRoutes } from "./routes/health.js";
 import { savesRoutes } from "./routes/saves.js";
 import { foldersRoutes } from "./routes/folders.js";
 import { meRoutes } from "./routes/me.js";
-import { understandRoutes } from "./routes/understand.js";
 import { searchRoutes } from "./routes/search.js";
 import { reminderRoutes } from "./routes/reminders.js";
 import { pushFireRoutes, pushRoutes } from "./routes/push.js";
@@ -69,7 +68,6 @@ export async function buildApp(
     meRoutes,
     savesRoutes,
     foldersRoutes,
-    understandRoutes,
     searchRoutes,
     reminderRoutes,
     pushRoutes,

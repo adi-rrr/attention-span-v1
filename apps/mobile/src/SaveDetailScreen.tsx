@@ -126,9 +126,6 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
     );
   }
 
-  const qa = (save.qa_pairs ?? []).filter((p) => p.question || p.answer);
-  const [firstAnswer, ...moreQa] = qa;
-
   return (
     <View style={styles.wrap}>
       <View pointerEvents="none" style={styles.glow} />
@@ -162,11 +159,6 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
             <Text style={styles.quoteLead}>What you took from it</Text>
             <Text style={styles.quote}>“{save.takeaway}”</Text>
           </>
-        ) : firstAnswer?.answer ? (
-          <>
-            <Text style={styles.quoteLead}>You saved this because</Text>
-            <Text style={styles.quote}>“{firstAnswer.answer}”</Text>
-          </>
         ) : null}
 
         <View style={styles.saveCard}>
@@ -185,17 +177,6 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
             </Text>
           </View>
         </View>
-
-        {moreQa.length > 0 ? (
-          <View style={styles.qaCard}>
-            {moreQa.map((p, i) => (
-              <View key={`${p.question}-${i}`} style={styles.qa}>
-                <Text style={styles.q}>{p.question}</Text>
-                <Text style={styles.a}>{p.answer || "—"}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
 
         {save.source_url ? (
           <Pressable
@@ -410,13 +391,6 @@ const styles = StyleSheet.create({
     color: "#6B5A50",
     textTransform: "capitalize",
   },
-  qaCard: {
-    marginTop: 12,
-    padding: 16,
-    paddingBottom: 4,
-    borderRadius: 20,
-    backgroundColor: "#FBF8F3",
-  },
   error: { color: "#B3261E", marginBottom: 8 },
   link: { marginTop: 12, color: "#1C1410", fontWeight: "600" },
   linkBtn: {
@@ -436,9 +410,6 @@ const styles = StyleSheet.create({
     color: "#6B5A50",
 
   },
-  qa: { marginBottom: 12 },
-  q: { fontSize: 14, fontWeight: "600", color: "#6B5A50", marginBottom: 4 },
-  a: { fontSize: 16, lineHeight: 22, color: "#1C1410" },
   note: {
     minHeight: 88,
     borderWidth: 1,

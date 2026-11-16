@@ -19,7 +19,6 @@ type SearchRow = {
   offline_policy: string;
   rank: number;
   has_reminder: boolean;
-  has_map_pin: boolean;
 };
 
 function pickMatchField(
@@ -99,11 +98,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
          EXISTS (
            SELECT 1 FROM reminders r
            WHERE r.save_id = s.id AND r.deleted_at IS NULL AND r.status = 'scheduled'
-         ) AS has_reminder,
-         EXISTS (
-           SELECT 1 FROM map_pins m
-           WHERE m.save_id = s.id AND m.deleted_at IS NULL
-         ) AS has_map_pin
+         ) AS has_reminder
        FROM saves s
        WHERE s.user_id = $1
          AND s.deleted_at IS NULL
@@ -127,7 +122,6 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         match_snippet,
         match_field,
         has_reminder: row.has_reminder,
-        has_map_pin: row.has_map_pin,
         content_kind: row.content_kind,
         offline_available: row.offline_policy === "full" ? "full" : "light",
         rank: Number(row.rank),

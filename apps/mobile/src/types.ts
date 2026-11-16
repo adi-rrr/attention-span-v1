@@ -43,11 +43,6 @@ export type Save = {
   updated_at?: string;
 };
 
-export type QaPair = {
-  question: string;
-  answer: string;
-};
-
 export type Reminder = {
   id: string;
   save_id: string;
@@ -59,7 +54,6 @@ export type Reminder = {
 };
 
 export type SaveDetail = Save & {
-  qa_pairs: QaPair[];
   reminder?: Reminder | null;
 };
 

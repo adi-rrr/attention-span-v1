@@ -34,6 +34,8 @@ const run = spawnSync(
     "-f",
     "db/migrations/007_categories.sql",
     "-f",
+    "db/migrations/008_drop_understand.sql",
+    "-f",
     "db/seed_dev.sql",
   ],
   { stdio: "inherit", env: { ...process.env, PGSSLMODE: "require" } },
