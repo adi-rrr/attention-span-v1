@@ -8,10 +8,11 @@ type Props = {
   save: Save;
   onPress: () => void;
   onLongPress?: () => void;
-  showFolderPath?: boolean;
+  /** Shown after the platform, e.g. the category in Kept's Recent list. */
+  tag?: string;
 };
 
-export function SaveCard({ save, onPress, onLongPress, showFolderPath }: Props) {
+export function SaveCard({ save, onPress, onLongPress, tag }: Props) {
   const snippet = save.understand_snippet?.trim();
   return (
     <Pressable
@@ -24,7 +25,7 @@ export function SaveCard({ save, onPress, onLongPress, showFolderPath }: Props) 
         <Text style={styles.meta}>
           {platformLabel(save.platform)}
           {save.has_reminder ? " · reminder" : ""}
-          {showFolderPath && save.folder_path ? ` · ${save.folder_path}` : ""}
+          {tag ? ` · ${tag}` : ""}
         </Text>
         {save.status === "done" ? <Text style={styles.done}>done</Text> : null}
       </View>

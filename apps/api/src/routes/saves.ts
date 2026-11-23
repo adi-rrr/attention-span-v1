@@ -11,7 +11,7 @@ import { categorizeSave } from "../services/categories.js";
 
 const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, short_title, user_note,
               folder_id, folder_path, content_kind, offline_policy,
-              expires_at, ai_intent, ai_reason, plan_text, plan_at, takeaway,
+              expires_at, plan_text, plan_at, takeaway,
               category, category_source, event_at, place_name, place_country,
               LEFT(regexp_replace(understand_text, E'[\\n\\r]+', ' ', 'g'), 140)
                 AS understand_snippet,
@@ -49,7 +49,7 @@ const patchSaveBody = z.object({
   user_note: z.string().nullable().optional(),
   folder_id: z.string().uuid().nullable().optional(),
   title: z.string().optional(),
-  status: z.enum(["understand_done", "done", "archived"]).optional(),
+  status: z.enum(["done", "archived"]).optional(),
 });
 
 /** Instagram only for now: other links are turned away with a clear message. */
@@ -62,6 +62,23 @@ function isInstagramUrl(url: string): boolean {
   }
 }
 
+/**
+ * One link per Instagram post. Every share adds its own tracking code
+ * (?igsh=…, ?psln=…), so the same post would otherwise save twice. Returns
+ * the post's shortcode and a clean link, e.g. https://www.instagram.com/reel/ABC/.
+ */
+export function canonicalInstagram(url: string): { code: string | null; url: string } {
+  try {
+    const u = new URL(url);
+    const m = u.pathname.match(/^\/(?:[^/]+\/)?(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);
+    if (!m) return { code: null, url: `${u.origin}${u.pathname}` };
+    const kind = m[1] === "reels" ? "reel" : m[1];
+    return { code: m[2], url: `https://www.instagram.com/${kind}/${m[2]}/` };
+  } catch {
+    return { code: null, url };
+  }
+}
+
 export const savesRoutes: FastifyPluginAsync = async (app) => {
   app.get("/saves", async (req) => {
     const userId = requireUserId(req);
@@ -71,6 +88,8 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
       uncategorized?: string;
       platform?: string;
       inbox?: string;
+      /** A category key. "other" also takes saves that never got one. */
+      category?: string;
     };
 
     const clauses = [`user_id = $1`, `deleted_at IS NULL`];
@@ -93,6 +112,12 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     if (q.platform) {
       params.push(q.platform);
       clauses.push(`platform = $${params.length}`);
+    }
+    if (q.category === "other") {
+      clauses.push(`(category IS NULL OR category = 'other')`);
+    } else if (q.category) {
+      params.push(q.category);
+      clauses.push(`category = $${params.length}`);
     }
 
     const { rows } = await query(
@@ -119,11 +144,20 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (body.source_url) {
+      const canonical = canonicalInstagram(body.source_url);
+      body.source_url = canonical.url;
+      // Match by the post's shortcode so older saves, stored with their
+      // tracking codes, still count as the same post.
       const { rows: existing } = await query(
         `SELECT id, created_at, status, expires_at FROM saves
-         WHERE user_id = $1 AND source_url = $2 AND deleted_at IS NULL
+         WHERE user_id = $1 AND deleted_at IS NULL
+           AND (source_url = $2
+                OR ($3::text IS NOT NULL
+                    AND source_url ~ ('instagram\\.com/(?:[^/]+/)?(?:p|reel|reels|tv)/'
+                                      || $3::text || '(?:[/?#]|$)')))
+         ORDER BY created_at DESC
          LIMIT 1`,
-        [userId, body.source_url],
+        [userId, canonical.url, canonical.code],
       );
 
       if (existing[0] && !body.replace_existing) {
@@ -196,7 +230,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     const { rows } = await query(
       `SELECT s.id, s.platform, s.status, s.source_url, s.title, s.short_title, s.user_note,
               s.folder_id, s.folder_path, s.content_kind, s.offline_policy,
-              s.expires_at, s.ai_intent, s.ai_reason, s.plan_text, s.plan_at, s.takeaway,
+              s.expires_at, s.plan_text, s.plan_at, s.takeaway,
               s.created_at, s.updated_at,
               CASE WHEN r.id IS NULL THEN NULL ELSE json_build_object(
                 'id', r.id,
@@ -254,7 +288,7 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
        WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
        RETURNING id, platform, status, source_url, title, user_note,
                  folder_id, folder_path, content_kind, offline_policy,
-              expires_at, ai_intent, ai_reason, plan_text, plan_at, takeaway,
+              expires_at, plan_text, plan_at, takeaway,
                  created_at, updated_at`,
       [
         id,

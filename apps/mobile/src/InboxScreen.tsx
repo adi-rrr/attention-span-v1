@@ -1,4 +1,5 @@
-import { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -7,7 +8,9 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { AddLink } from "./components/AddLink";
 import { PostViewer } from "./components/PostViewer";
+import { StageGuide } from "./components/StageGuide";
 import { Ember, LifeDots, MeltWord, daysLeftOf } from "./doodles";
 import { platformLabel } from "./lifecycle";
 import { displayTitle } from "./text";
@@ -23,6 +26,9 @@ type Props = {
 };
 
 const HOUR = 60 * 60 * 1000;
+
+/** Set once the stage explainer has been seen, so it only opens by itself once. */
+const STAGE_GUIDE_KEY = "guide.stages.v1";
 
 /** "5 h left" on the last day, otherwise "3 days". */
 function timeLeft(expiresAt: string | null | undefined): string {
@@ -44,7 +50,24 @@ function todayLabel() {
 
 export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Props) {
   const [viewing, setViewing] = useState<Save | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const lifespan = summary?.lifespan_days ?? 7;
+
+  // The first time there's something melting, explain the stage names once.
+  const hasItems = items.length > 0;
+  useEffect(() => {
+    if (!hasItems) return;
+    void AsyncStorage.getItem(STAGE_GUIDE_KEY)
+      .then((seen) => {
+        if (!seen) setGuideOpen(true);
+      })
+      .catch(() => {});
+  }, [hasItems]);
+
+  function closeGuide() {
+    setGuideOpen(false);
+    void AsyncStorage.setItem(STAGE_GUIDE_KEY, "1").catch(() => {});
+  }
   const rows = items.map((save, index) => ({
     save,
     index,
@@ -104,9 +127,20 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
       <View style={styles.hero}>
         <Text style={styles.bigNum}>{items.length}</Text>
         <View style={styles.heroText}>
-          <Text style={styles.heroLabel}>
-            {items.length === 1 ? "SAVE MELTING" : "SAVES MELTING"}
-          </Text>
+          <View style={styles.heroLabelRow}>
+            <Text style={styles.heroLabel}>
+              {items.length === 1 ? "SAVE MELTING" : "SAVES MELTING"}
+            </Text>
+            <Pressable
+              style={styles.help}
+              onPress={() => setGuideOpen(true)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="What fresh, dripping and last day mean"
+            >
+              <Text style={styles.helpText}>?</Text>
+            </Pressable>
+          </View>
           <Text style={styles.heroDate}>{todayLabel()}</Text>
         </View>
         <View style={styles.heroEmber}>
@@ -114,16 +148,19 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
         </View>
       </View>
 
+      {/* Web only: paste a link, since a computer has no share sheet. */}
+      <AddLink onSaved={onRefresh} />
+
       {today.length > 0 ? (
         <Pressable
           style={styles.banner}
           onPress={() => onDecide(today[0].index)}
           accessibilityRole="button"
         >
-          <MeltWord daysLeft={0} size={30} />
+          {/* Badge above the line, so the wide "last day" badge doesn't squeeze it. */}
           <View style={styles.bannerText}>
-            <Text style={styles.bannerEyebrow}>melting today</Text>
-            <Text style={styles.bannerTitle}>
+            <MeltWord daysLeft={0} size={24} />
+            <Text style={[styles.bannerTitle, styles.bannerTitleGap]}>
               {today.length} {today.length === 1 ? "save needs" : "saves need"} you
             </Text>
           </View>
@@ -185,6 +222,7 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
         </>
       ) : null}
       <PostViewer save={viewing} onClose={() => setViewing(null)} />
+      <StageGuide visible={guideOpen} onClose={closeGuide} />
     </ScrollView>
   );
 }
@@ -200,10 +238,22 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   heroText: { paddingBottom: 8, flexShrink: 1 },
+  heroLabelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   heroLabel: { fontSize: 19, fontWeight: "700", letterSpacing: 0.4, color: colors.ink },
+  help: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  helpText: { fontSize: 13, fontWeight: "800", color: colors.ink, lineHeight: 15 },
   heroDate: { fontSize: 16, fontWeight: "300", color: colors.muted },
   heroEmber: { marginLeft: "auto", paddingBottom: 4 },
-  stage: { width: 76 },
+  // Wide enough for the "last day" badge on one line.
+  stage: { width: 100 },
   banner: {
     marginTop: 18,
     flexDirection: "row",
@@ -217,7 +267,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentTint,
   },
   bannerText: { flex: 1, minWidth: 0 },
-  bannerEyebrow: { fontSize: 13, fontWeight: "600", color: colors.orangeDeep },
+  bannerTitleGap: { marginTop: 6 },
   bannerTitle: {
     fontSize: 21,
     lineHeight: 24,

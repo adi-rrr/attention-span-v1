@@ -15,11 +15,9 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { api } from "./api";
 import { labelOf, useCategories } from "./categories";
 import { CategoryPicker } from "./components/CategoryPicker";
 import { PostViewer } from "./components/PostViewer";
-import { FolderDropdown } from "./components/FolderTreePicker";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import {
   draftPlan,
@@ -37,9 +35,9 @@ import {
 } from "./reminders/format";
 import { scheduleLocalReminder } from "./reminders/notifications";
 import { displayTitle } from "./text";
-import { Ember, LifeDots, MELT_STAGES, MeltWord, daysLeftOf, meltStage } from "./doodles";
+import { Ember, LifeDots, MeltWord, daysLeftOf, meltStage, stageCopy } from "./doodles";
 import { Text, TextInput, colors, handFont, shadow } from "./theme";
-import type { CategoryKey, Folder, KeepMode, Save } from "./types";
+import type { CategoryKey, KeepMode, Save } from "./types";
 
 type Props = {
   items: Save[];
@@ -321,6 +319,7 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
   }
 
   const days = daysLeftOf(save.expires_at);
+  const copy = stageCopy(meltStage(days), save.expires_at);
   const life = lifeLabel(save, lifespanDays);
   const rotate = pan.x.interpolate({
     inputRange: [-width, 0, width],
@@ -383,9 +382,12 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
             </View>
 
             <View style={[styles.meltCard, days <= 1 && styles.meltCardHot]}>
-              <MeltWord daysLeft={days} size={56} />
-              <Text style={styles.meltTitle}>{MELT_STAGES[meltStage(days)].title}</Text>
-              <Text style={styles.meltHint}>{MELT_STAGES[meltStage(days)].hint}</Text>
+              <MeltWord daysLeft={days} size={48} center />
+              {/* One line: phones shrink the text slightly rather than wrap it. */}
+              <Text style={styles.meltTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {copy.title}
+              </Text>
+              {copy.hint ? <Text style={styles.meltHint}>{copy.hint}</Text> : null}
             </View>
             <Text style={styles.meta}>
               {platformLabel(save.platform)}
@@ -551,9 +553,6 @@ function KeepStep({
   const [text, setText] = useState("");
   const [when, setWhen] = useState<Date>(defaultReminderDate());
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [folderId, setFolderId] = useState<string | null>(null);
-  const [showFolders, setShowFolders] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -572,22 +571,10 @@ function KeepStep({
         })
         .finally(() => alive && setLoading(false));
     }
-    void api<{ items: Folder[] }>("/folders")
-      .then((r) => alive && setFolders(r.items))
-      .catch(() => {});
     return () => {
       alive = false;
     };
   }, [save.id, isPlan]);
-
-  async function createFolder(name: string, parentId: string | null) {
-    const folder = await api<Folder>("/folders", {
-      method: "POST",
-      body: JSON.stringify({ name, parent_id: parentId }),
-    });
-    setFolders((prev) => [...prev, folder].sort((a, b) => a.path.localeCompare(b.path)));
-    setFolderId(folder.id);
-  }
 
   async function submit() {
     const value = text.trim();
@@ -600,7 +587,6 @@ function KeepStep({
         ...(isPlan
           ? { plan_text: value, plan_at: when.toISOString() }
           : { takeaway: value, keep_link: keepLink }),
-        folder_id: folderId,
         timezone: deviceTimezone(),
         decision_ms: Math.round(decisionMs()),
       });
@@ -703,24 +689,6 @@ function KeepStep({
           </View>
         ) : null}
 
-        {showFolders ? (
-          <View style={{ marginTop: 12 }}>
-            <Text style={styles.whenLabel}>Folder</Text>
-            <View style={{ height: 8 }} />
-            <FolderDropdown
-              folders={folders}
-              selectedId={folderId}
-              onSelect={setFolderId}
-              onCreateFolder={createFolder}
-              busy={busy}
-            />
-          </View>
-        ) : (
-          <Pressable style={styles.textBtn} onPress={() => setShowFolders(true)}>
-            <Text style={styles.textBtnText}>+ Add to a folder (optional)</Text>
-          </Pressable>
-        )}
-
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable
@@ -779,7 +747,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   meltCardHot: { backgroundColor: colors.accentTint, borderColor: colors.orange },
-  meltTitle: { marginTop: 4, fontSize: 17, fontWeight: "700", color: colors.ink },
+  meltTitle: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.ink,
+    textAlign: "center",
+  },
   meltHint: { marginTop: 2, fontSize: 14, fontWeight: "300", color: colors.inkSoft },
   card: { paddingTop: 16 },
   dotsRow: { marginTop: 12 },

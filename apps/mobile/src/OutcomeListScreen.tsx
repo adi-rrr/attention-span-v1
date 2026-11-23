@@ -1,4 +1,3 @@
-import * as Linking from "expo-linking";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,6 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { PostViewer } from "./components/PostViewer";
 import { fetchOutcomes, platformLabel, type OutcomeKind } from "./lifecycle";
 import { deviceTimezone, formatReminderTime } from "./reminders/format";
 import { displayTitle } from "./text";
@@ -16,6 +16,8 @@ import type { Save } from "./types";
 
 type Props = {
   kind: OutcomeKind;
+  /** "YYYY-MM-DD": only that day (a tapped Mirror day). Otherwise this month. */
+  day?: string;
   onBack: () => void;
   onOpenSave: (saveId: string) => void;
 };
@@ -29,7 +31,17 @@ const COPY: Record<OutcomeKind, { title: string; empty: string }> = {
     title: "What you planned",
     empty: "No plans yet this month. “Plan it” turns a save into a next step with a date.",
   },
+  distilled: {
+    title: "What you distilled",
+    empty: "Nothing distilled yet. “Distill it” keeps the one lesson from a save.",
+  },
 };
+
+/** "13 Nov" from "2026-11-13", read as a local date. */
+function dayLabel(day: string) {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
 
 function shortDate(iso: string | null | undefined) {
   if (!iso) return "";
@@ -37,22 +49,23 @@ function shortDate(iso: string | null | undefined) {
 }
 
 /** The saves behind a Mirror count, this month. */
-export function OutcomeListScreen({ kind, onBack, onOpenSave }: Props) {
+export function OutcomeListScreen({ kind, day, onBack, onOpenSave }: Props) {
   const [items, setItems] = useState<Save[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Save | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setItems((await fetchOutcomes(kind, deviceTimezone())).items);
+      setItems((await fetchOutcomes(kind, deviceTimezone(), day)).items);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load this list");
     } finally {
       setLoading(false);
     }
-  }, [kind]);
+  }, [kind, day]);
 
   useEffect(() => {
     void load();
@@ -67,7 +80,9 @@ export function OutcomeListScreen({ kind, onBack, onOpenSave }: Props) {
         <Text style={styles.heading}>{COPY[kind].title}</Text>
         <View style={styles.roundSpacer} />
       </View>
-      <Text style={styles.sub}>This month · {items.length}</Text>
+      <Text style={styles.sub}>
+        {day ? dayLabel(day) : "This month"} · {items.length}
+      </Text>
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -98,18 +113,24 @@ export function OutcomeListScreen({ kind, onBack, onOpenSave }: Props) {
                 ) : null}
               </View>
             ) : null}
+            {kind === "distilled" && s.takeaway ? (
+              <View style={styles.plan}>
+                <Text style={styles.planText}>“{s.takeaway}”</Text>
+              </View>
+            ) : null}
             {s.source_url ? (
               <Pressable
                 style={styles.openBtn}
-                onPress={() => void Linking.openURL(s.source_url!)}
-                accessibilityLabel="Open the original post"
+                onPress={() => setViewing(s)}
+                accessibilityLabel="View the post"
               >
-                <Text style={styles.openBtnText}>Open post ↗</Text>
+                <Text style={styles.openBtnText}>View post</Text>
               </Pressable>
             ) : null}
           </Pressable>
         ))}
       </ScrollView>
+      <PostViewer save={viewing} onClose={() => setViewing(null)} />
     </View>
   );
 }

@@ -1,4 +1,3 @@
-import * as Linking from "expo-linking";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +12,7 @@ import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
 import { letGo, markDone } from "./lifecycle";
 import { FolderPickerModal } from "./components/FolderPickerModal";
+import { PostViewer } from "./components/PostViewer";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import { formatReminderTime } from "./reminders/format";
 import { cancelLocalReminder } from "./reminders/notifications";
@@ -31,6 +31,8 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The post opens inside the app, as in the sorting deck, not in Instagram.
+  const [viewing, setViewing] = useState(false);
   const [picker, setPicker] = useState(false);
   const [reminderPicker, setReminderPicker] = useState(false);
 
@@ -181,9 +183,9 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
         {save.source_url ? (
           <Pressable
             style={styles.linkBtn}
-            onPress={() => void Linking.openURL(save.source_url!)}
+            onPress={() => setViewing(true)}
           >
-            <Text style={styles.linkBtnText}>Open original</Text>
+            <Text style={styles.linkBtnText}>View post</Text>
           </Pressable>
         ) : null}
 
@@ -309,6 +311,7 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
           })();
         }}
       />
+      <PostViewer save={viewing ? save : null} onClose={() => setViewing(false)} />
     </View>
   );
 }

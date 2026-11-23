@@ -399,10 +399,28 @@ export async function mirror(userId: string, timezone?: string) {
     Record<EventKind, number>
   >;
 
-  const { rows: days } = await query<{ day: string; acted: boolean; faded: boolean }>(
+  // Per day: whether anything was acted on or faded (the dot's colour), and
+  // the count of each kind (the number in the dot and the tap-for-detail split).
+  const { rows: days } = await query<{
+    day: string;
+    acted: boolean;
+    faded: boolean;
+    saved: number;
+    done: number;
+    planned: number;
+    distilled: number;
+    let_go: number;
+    faded_n: number;
+  }>(
     `SELECT to_char((created_at AT TIME ZONE $2)::date, 'YYYY-MM-DD') AS day,
             bool_or(kind IN ('done', 'planned', 'distilled')) AS acted,
-            bool_or(kind = 'faded') AS faded
+            bool_or(kind = 'faded') AS faded,
+            count(*) FILTER (WHERE kind = 'saved')::int AS saved,
+            count(*) FILTER (WHERE kind = 'done')::int AS done,
+            count(*) FILTER (WHERE kind = 'planned')::int AS planned,
+            count(*) FILTER (WHERE kind = 'distilled')::int AS distilled,
+            count(*) FILTER (WHERE kind = 'let_go')::int AS let_go,
+            count(*) FILTER (WHERE kind = 'faded')::int AS faded_n
      FROM save_events
      WHERE ${monthFilter}
      GROUP BY 1

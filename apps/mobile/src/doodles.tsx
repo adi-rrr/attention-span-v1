@@ -1,4 +1,5 @@
-import { StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet, View } from "react-native";
 import Svg, { Circle, G, Path, Rect } from "react-native-svg";
 import { Text, colors, handFont } from "./theme";
 
@@ -7,7 +8,7 @@ const DAY = 24 * HOUR;
 
 /**
  * Days of life left, on a 7..0 scale. 0 means "last
- * hours" (under 12 h), the puddle stage.
+ * hours" (under 12 h); 0 and 1 are the "last day" stage.
  */
 export function daysLeftOf(expiresAt: string | null | undefined, now = Date.now()): number {
   if (!expiresAt) return 7;
@@ -16,30 +17,154 @@ export function daysLeftOf(expiresAt: string | null | undefined, now = Date.now(
   return Math.max(1, Math.min(7, Math.ceil(left / DAY)));
 }
 
-export type MeltStage = "fresh" | "dripping" | "puddle";
+export type MeltStage = "fresh" | "dripping" | "last_day";
 
-/** The three named stages a save melts through, easier to read than a drawing. */
-export const MELT_STAGES: Record<MeltStage, { color: string; title: string; hint: string }> = {
-  fresh: { color: colors.inkSoft, title: "No rush", hint: "Plenty of time. Enjoy it this week." },
-  dripping: { color: "#9A5B12", title: "Give it a plan", hint: "Pick a date, or keep the one lesson." },
-  puddle: { color: colors.orange, title: "Today, or it's gone", hint: "Act on it, or let it go." },
+type StageStyle = {
+  /** What the user reads. */
+  label: string;
+  color: string;
+  title: string;
+  hint: string;
+  /**
+   * Badge behind the word: a steady base colour with a brighter glow on top
+   * that fades in and out every `pulseMs`. The base keeps the word readable
+   * at the dim end of the pulse.
+   */
+  badge?: { base: string; glow: string; pulseMs: number };
+};
+
+/** The three named stages a save melts through, each more urgent than the last. */
+export const MELT_STAGES: Record<MeltStage, StageStyle> = {
+  fresh: {
+    label: "fresh",
+    color: colors.inkSoft,
+    title: "No rush",
+    hint: "Plenty of time. Enjoy it this week.",
+  },
+  dripping: {
+    label: "dripping",
+    color: "#9A5B12",
+    title: "It won't last. Better act on it now.",
+    hint: "",
+    // A slow glow, once every 2.5 s: noticeable, not alarming.
+    badge: { base: "#FFF0B8", glow: "#FFD43B", pulseMs: 2500 },
+  },
+  last_day: {
+    label: "last day",
+    color: "#FFE14D",
+    // Without a save to time, e.g. in the stage explainer; stageCopy() has the hours.
+    title: "Expiring today. Decide now or it fades.",
+    hint: "",
+    // A fast blink, once a second (0.5 s in, 0.5 s out): urgent.
+    badge: { base: "#B3261E", glow: "#FF3B2F", pulseMs: 1000 },
+  },
 };
 
 export function meltStage(daysLeft: number): MeltStage {
-  return daysLeft >= 6 ? "fresh" : daysLeft >= 2 ? "dripping" : "puddle";
+  return daysLeft >= 6 ? "fresh" : daysLeft >= 2 ? "dripping" : "last_day";
 }
 
-/** The stage name in the hand font: fresh, dripping or puddle. */
-export function MeltWord({ daysLeft, size = 22 }: { daysLeft: number; size?: number }) {
+/**
+ * The stage's line for one save. On the last day it counts the real hours
+ * left: "Expiring in 9 h. Decide now, or it fades."
+ */
+export function stageCopy(
+  stage: MeltStage,
+  expiresAt?: string | null,
+): { title: string; hint: string } {
+  const base = MELT_STAGES[stage];
+  if (stage !== "last_day" || !expiresAt) return { title: base.title, hint: base.hint };
+  const hours = (new Date(expiresAt).getTime() - Date.now()) / HOUR;
+  const when = hours < 1 ? "under 1 h" : `${Math.ceil(hours)} h`;
+  return { title: `Expiring in ${when}. Decide now or it fades.`, hint: "" };
+}
+
+// One shared pulse per stage, so every badge on screen glows in step
+// instead of each one blinking on its own beat.
+const pulses: Partial<Record<MeltStage, Animated.Value>> = {};
+
+function pulseFor(stage: MeltStage, periodMs: number): Animated.Value {
+  const existing = pulses[stage];
+  if (existing) return existing;
+  const value = new Animated.Value(0);
+  const half = periodMs / 2;
+  const step = (toValue: number) =>
+    Animated.timing(value, {
+      toValue,
+      duration: half,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: Platform.OS !== "web",
+    });
+  Animated.loop(Animated.sequence([step(1), step(0)])).start();
+  pulses[stage] = value;
+  return value;
+}
+
+/** True when the phone asks apps to cut down on motion. */
+function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduce);
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduce);
+    return () => sub.remove();
+  }, []);
+  return reduce;
+}
+
+/**
+ * The stage name in the hand font. Fresh is plain text; dripping sits on a
+ * slowly glowing yellow badge and last day on a fast-blinking red one.
+ */
+export function MeltWord({
+  daysLeft,
+  size = 22,
+  center = false,
+}: {
+  daysLeft: number;
+  size?: number;
+  /** Centre the badge in its parent instead of hugging the left edge. */
+  center?: boolean;
+}) {
   const stage = meltStage(daysLeft);
-  return (
+  const s = MELT_STAGES[stage];
+  const reduceMotion = useReduceMotion();
+
+  const word = (
     <Text
-      style={[styles.word, { fontSize: size, lineHeight: size * 1.15, color: MELT_STAGES[stage].color }]}
-      accessibilityLabel={`${stage}: ${MELT_STAGES[stage].title}`}
+      style={[
+        styles.word,
+        { fontSize: size, lineHeight: size * 1.15, color: s.color },
+        // The badge already carries the tilt.
+        s.badge && styles.untilted,
+      ]}
+      accessibilityLabel={`${s.label}: ${s.title}`}
       numberOfLines={1}
     >
-      {stage}
+      {s.label}
     </Text>
+  );
+  if (!s.badge) return word;
+
+  const glowOpacity = reduceMotion ? 1 : pulseFor(stage, s.badge.pulseMs);
+  return (
+    <View
+      style={[
+        styles.badge,
+        center && styles.badgeCenter,
+        {
+          backgroundColor: s.badge.base,
+          borderRadius: size * 0.45,
+          paddingHorizontal: size * 0.4,
+          paddingVertical: size * 0.06,
+        },
+      ]}
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: s.badge.glow, opacity: glowOpacity }]}
+      />
+      {word}
+    </View>
   );
 }
 
@@ -142,6 +267,9 @@ export function Ember({
 
 const styles = StyleSheet.create({
   word: { fontFamily: handFont, transform: [{ rotate: "-3deg" }] },
+  badge: { alignSelf: "flex-start", overflow: "hidden", transform: [{ rotate: "-3deg" }] },
+  badgeCenter: { alignSelf: "center" },
+  untilted: { transform: [] },
   dots: { flexDirection: "row", gap: 4 },
   dotGone: { borderWidth: 1.5, borderColor: colors.border },
   dotOn: { backgroundColor: colors.ink },

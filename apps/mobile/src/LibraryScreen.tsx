@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,58 +8,47 @@ import {
 } from "react-native";
 import { Text, TextInput, colors, handFont, shadow } from "./theme";
 import { api } from "./api";
+import { labelOf, renameCategoryEverywhere, useCategories } from "./categories";
 import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
-import { platformLabel } from "./lifecycle";
+import { fetchCategoryCounts, platformLabel, setCategory } from "./lifecycle";
 import { searchSaves, type SearchResult } from "./search";
 import { ActionSheet } from "./components/ActionSheet";
-import { FolderPickerModal } from "./components/FolderPickerModal";
+import { CategoryPicker } from "./components/CategoryPicker";
 import { SaveCard } from "./components/SaveCard";
 import { TextPromptModal } from "./components/TextPromptModal";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import { cancelLocalReminder } from "./reminders/notifications";
 import { cancelSaveReminder, upsertSaveReminder } from "./reminders/sync";
-import type { Folder, Save } from "./types";
+import type { CategoryKey, Save } from "./types";
 import { LIBRARY_STATUSES } from "./types";
 
-type Location =
-  | { kind: "root" }
-  | { kind: "uncategorized" }
-  | { kind: "folder"; id: string };
+/**
+ * Kept is grouped by the same categories the user confirms while sorting,
+ * so a save lands where they put it. Saves without one sit under "other".
+ */
+type Location = { kind: "root" } | { kind: "category"; key: CategoryKey };
 
 type Props = {
   onOpenSave: (saveId: string) => void;
 };
 
-function selfAndDescendants(folders: Folder[], id: string): string[] {
-  const ids = [id];
-  const walk = (parentId: string) => {
-    for (const child of folders.filter((f) => f.parent_id === parentId)) {
-      ids.push(child.id);
-      walk(child.id);
-    }
-  };
-  walk(id);
-  return ids;
-}
-
 export function LibraryScreen({ onOpenSave }: Props) {
+  const categories = useCategories();
   const [location, setLocation] = useState<Location>({ kind: "root" });
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [counts, setCounts] = useState<Partial<Record<CategoryKey, number>>>({});
   const [saves, setSaves] = useState<Save[]>([]);
   const [recent, setRecent] = useState<Save[]>([]);
-  const [uncategorizedCount, setUncategorizedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [folderSheet, setFolderSheet] = useState<Folder | null>(null);
   const [saveSheet, setSaveSheet] = useState<Save | null>(null);
-  const [prompt, setPrompt] = useState<null | "create" | "rename">(null);
-  const [picker, setPicker] = useState<null | "move-folder" | "move-save">(null);
+  const [renaming, setRenaming] = useState(false);
+  const [categoryPicker, setCategoryPicker] = useState(false);
   const [reminderSave, setReminderSave] = useState<Save | null>(null);
 
-  // Search lives at the top of Kept; results replace the folders until cleared.
+  // Search lives at the top of Kept; results replace the categories until cleared.
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -84,53 +73,26 @@ export function LibraryScreen({ onOpenSave }: Props) {
     setResults(null);
   }
 
-  const currentFolder =
-    location.kind === "folder"
-      ? folders.find((f) => f.id === location.id) ?? null
-      : null;
-
-  const childFolders = useMemo(() => {
-    if (location.kind === "root") {
-      return folders.filter((f) => f.parent_id === null);
-    }
-    if (location.kind === "folder") {
-      return folders.filter((f) => f.parent_id === location.id);
-    }
-    return [];
-  }, [folders, location]);
-
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const folderRes = await api<{ items: Folder[] }>("/folders");
-      setFolders(folderRes.items);
-
       if (location.kind === "root") {
-        const [recentRes, uncRes] = await Promise.all([
+        const [countRes, recentRes] = await Promise.all([
+          fetchCategoryCounts(LIBRARY_STATUSES),
           api<{ items: Save[] }>(`/saves?status=${LIBRARY_STATUSES}`),
-          api<{ items: Save[] }>(
-            `/saves?uncategorized=true&status=${LIBRARY_STATUSES}`,
-          ),
         ]);
+        setCounts(countRes.counts);
         setRecent(recentRes.items.slice(0, 8));
-        setUncategorizedCount(uncRes.items.length);
         setSaves([]);
-      } else if (location.kind === "uncategorized") {
-        const res = await api<{ items: Save[] }>(
-          `/saves?uncategorized=true&status=${LIBRARY_STATUSES}`,
-        );
-        setSaves(res.items);
-        setUncategorizedCount(res.items.length);
-        setRecent([]);
       } else {
         const res = await api<{ items: Save[] }>(
-          `/saves?folder_id=${location.id}&status=${LIBRARY_STATUSES}`,
+          `/saves?category=${location.key}&status=${LIBRARY_STATUSES}`,
         );
         setSaves(res.items);
         setRecent([]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load library");
+      setError(e instanceof Error ? e.message : "Failed to load your saves");
     } finally {
       setLoading(false);
     }
@@ -141,38 +103,13 @@ export function LibraryScreen({ onOpenSave }: Props) {
     void refresh();
   }, [refresh]);
 
-  async function createFolder(name: string) {
+  async function renameCurrent(label: string) {
+    if (location.kind !== "category") return;
     setBusy(true);
     setError(null);
     try {
-      await api("/folders", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          parent_id: location.kind === "folder" ? location.id : null,
-        }),
-      });
-      setPrompt(null);
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create folder");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function renameFolder(name: string) {
-    if (!folderSheet) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api(`/folders/${folderSheet.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name }),
-      });
-      setPrompt(null);
-      setFolderSheet(null);
-      await refresh();
+      await renameCategoryEverywhere(location.key, label);
+      setRenaming(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not rename");
     } finally {
@@ -180,51 +117,17 @@ export function LibraryScreen({ onOpenSave }: Props) {
     }
   }
 
-  async function moveFolderTo(parentId: string | null) {
-    if (!folderSheet) return;
+  async function moveToCategory(key: CategoryKey) {
+    if (!saveSheet) return;
     setBusy(true);
     setError(null);
     try {
-      await api(`/folders/${folderSheet.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ parent_id: parentId }),
-      });
-      setPicker(null);
-      setFolderSheet(null);
+      await setCategory(saveSheet.id, key);
+      setCategoryPicker(false);
+      setSaveSheet(null);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not move folder");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function confirmDeleteFolder(folder: Folder) {
-    confirmDestructive(
-      `Delete ${folder.name}?`,
-      "This deletes the folder, every subfolder, and every save inside. This cannot be undone.",
-      "Delete everything",
-      () => void deleteFolder(folder),
-    );
-  }
-
-  async function deleteFolder(folder: Folder) {
-    setBusy(true);
-    setError(null);
-    try {
-      await api(`/folders/${folder.id}`, { method: "DELETE" });
-      setFolderSheet(null);
-      if (location.kind === "folder" && location.id === folder.id) {
-        setLocation(
-          folder.parent_id
-            ? { kind: "folder", id: folder.parent_id }
-            : { kind: "root" },
-        );
-      } else {
-        await refresh();
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not delete folder");
+      setError(e instanceof Error ? e.message : "Could not change category");
     } finally {
       setBusy(false);
     }
@@ -239,7 +142,6 @@ export function LibraryScreen({ onOpenSave }: Props) {
         body: JSON.stringify(body),
       });
       setSaveSheet(null);
-      setPicker(null);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update save");
@@ -272,18 +174,9 @@ export function LibraryScreen({ onOpenSave }: Props) {
     }
   }
 
-  const heading =
-    location.kind === "root"
-      ? "Library"
-      : location.kind === "uncategorized"
-        ? "Uncategorized"
-        : (currentFolder?.name ?? "Folder");
+  const heading = location.kind === "category" ? labelOf(categories, location.key) : "";
 
-  const canAddSubfolder =
-    location.kind === "root" ||
-    (currentFolder != null && currentFolder.depth < 5);
-
-  if (loading && folders.length === 0) {
+  if (loading && recent.length === 0 && saves.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.accent} />
@@ -360,90 +253,72 @@ export function LibraryScreen({ onOpenSave }: Props) {
         <>
           <View style={styles.nav}>
             {location.kind !== "root" ? (
-              <Pressable
-                style={styles.pill}
-                onPress={() =>
-                  setLocation(
-                    location.kind === "folder" && currentFolder?.parent_id
-                      ? { kind: "folder", id: currentFolder.parent_id }
-                      : { kind: "root" },
-                  )
-                }
-              >
+              <Pressable style={styles.pill} onPress={() => setLocation({ kind: "root" })}>
                 <Text style={styles.pillText}>← Back</Text>
               </Pressable>
             ) : (
-              <Text style={styles.section}>YOUR FOLDERS</Text>
+              <Text style={styles.section}>YOUR CATEGORIES</Text>
             )}
-            <View style={styles.navActions}>
-              {location.kind === "folder" && currentFolder ? (
-                <Pressable style={styles.pill} onPress={() => setFolderSheet(currentFolder)}>
-                  <Text style={styles.pillText}>Edit</Text>
-                </Pressable>
-              ) : null}
-              {canAddSubfolder ? (
-                <Pressable style={styles.pill} onPress={() => setPrompt("create")}>
-                  <Text style={styles.pillText}>+ Folder</Text>
-                </Pressable>
-              ) : null}
-            </View>
+            {location.kind === "category" ? (
+              <Pressable style={styles.pill} onPress={() => setRenaming(true)}>
+                <Text style={styles.pillText}>Rename</Text>
+              </Pressable>
+            ) : null}
           </View>
           {location.kind !== "root" ? (
             <Text style={styles.heading}>{heading}</Text>
-          ) : null}
-          {currentFolder?.path && location.kind === "folder" ? (
-            <Text style={styles.path}>{currentFolder.path}</Text>
           ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <ScrollView contentContainerStyle={styles.scroll}>
-            {childFolders.map((f) => (
-              <Pressable
-                key={f.id}
-                style={styles.folderRow}
-                onPress={() => setLocation({ kind: "folder", id: f.id })}
-                onLongPress={() => setFolderSheet(f)}
-                delayLongPress={350}
-              >
-                <Text style={styles.folderName} numberOfLines={1}>{f.name}</Text>
-                <Text style={styles.folderCount}>{f.save_count || ""}</Text>
-                <Text style={styles.folderMeta}>›</Text>
-              </Pressable>
-            ))}
-
-            {location.kind === "root" ? (
-              <Pressable
-                style={styles.folderRow}
-                onPress={() => setLocation({ kind: "uncategorized" })}
-              >
-                <Text style={styles.folderName}>Uncategorized</Text>
-                <Text style={styles.folderCount}>{uncategorizedCount || ""}</Text>
-                <Text style={styles.folderMeta}>›</Text>
-              </Pressable>
-            ) : null}
+            {location.kind === "root"
+              ? categories.map((c) => {
+                  const n = counts[c.key] ?? 0;
+                  return (
+                    <Pressable
+                      key={c.key}
+                      style={styles.folderRow}
+                      onPress={() => setLocation({ kind: "category", key: c.key })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${c.label}, ${n} saved`}
+                    >
+                      <Text
+                        style={[styles.folderName, n === 0 && styles.folderEmpty]}
+                        numberOfLines={1}
+                      >
+                        {c.label}
+                      </Text>
+                      <Text style={styles.folderCount}>{n || ""}</Text>
+                      <Text style={styles.folderMeta}>›</Text>
+                    </Pressable>
+                  );
+                })
+              : null}
 
             {location.kind === "root" ? (
               <>
                 <Text style={[styles.section, styles.sectionGap]}>RECENT</Text>
                 {recent.length === 0 ? (
                   <Text style={styles.empty}>
-                    Completed reflections will show up here.
+                    What you plan, distill or do shows up here.
                   </Text>
                 ) : (
                   recent.map((s) => (
                     <SaveCard
                       key={s.id}
                       save={s}
-                      showFolderPath
+                      tag={labelOf(categories, s.category ?? "other")}
                       onPress={() => onOpenSave(s.id)}
                       onLongPress={() => setSaveSheet(s)}
                     />
                   ))
                 )}
               </>
-            ) : saves.length === 0 && childFolders.length === 0 ? (
-              <Text style={styles.empty}>Nothing in this folder yet.</Text>
+            ) : saves.length === 0 ? (
+              <Text style={styles.empty}>
+                Nothing here yet. Saves you keep as {heading} while sorting land here.
+              </Text>
             ) : (
               saves.map((s) => (
                 <SaveCard
@@ -459,30 +334,10 @@ export function LibraryScreen({ onOpenSave }: Props) {
       )}
 
       <ActionSheet
-        visible={folderSheet !== null && prompt === null && picker === null}
-        title={folderSheet?.name}
-        actions={[
-          { id: "rename", label: "Rename" },
-          { id: "move", label: "Move to another folder" },
-          { id: "delete", label: "Delete folder", destructive: true },
-        ]}
-        onClose={() => setFolderSheet(null)}
-        onSelect={(id) => {
-          if (id === "rename") setPrompt("rename");
-          if (id === "move") setPicker("move-folder");
-          if (id === "delete" && folderSheet) {
-            const folder = folderSheet;
-            setFolderSheet(null);
-            confirmDeleteFolder(folder);
-          }
-        }}
-      />
-
-      <ActionSheet
-        visible={saveSheet !== null && picker === null && reminderSave === null}
+        visible={saveSheet !== null && !categoryPicker && reminderSave === null}
         title={saveSheet ? displayTitle(saveSheet) : "Save"}
         actions={[
-          { id: "move", label: "Move to folder" },
+          { id: "category", label: "Change category" },
           { id: "note", label: "Edit note" },
           {
             id: "reminder",
@@ -497,7 +352,7 @@ export function LibraryScreen({ onOpenSave }: Props) {
         onClose={() => setSaveSheet(null)}
         onSelect={(id) => {
           if (!saveSheet) return;
-          if (id === "move") setPicker("move-save");
+          if (id === "category") setCategoryPicker(true);
           if (id === "note") {
             const idToOpen = saveSheet.id;
             setSaveSheet(null);
@@ -510,51 +365,23 @@ export function LibraryScreen({ onOpenSave }: Props) {
         }}
       />
 
-      <TextPromptModal
-        visible={prompt === "create"}
-        title={location.kind === "folder" ? "New subfolder" : "New folder"}
-        placeholder="Folder name"
-        confirmLabel="Create"
-        busy={busy}
-        onCancel={() => setPrompt(null)}
-        onSubmit={(name) => void createFolder(name)}
-      />
-
-      <TextPromptModal
-        visible={prompt === "rename"}
-        title="Rename folder"
-        initialValue={folderSheet?.name ?? ""}
-        busy={busy}
-        onCancel={() => setPrompt(null)}
-        onSubmit={(name) => void renameFolder(name)}
-      />
-
-      <FolderPickerModal
-        visible={picker === "move-folder"}
-        title="Move folder under"
-        folders={folders}
-        allowRoot
-        excludeIds={
-          folderSheet ? selfAndDescendants(folders, folderSheet.id) : []
-        }
-        onClose={() => setPicker(null)}
-        onSelect={(id) => void moveFolderTo(id)}
-        onFoldersChange={setFolders}
-        confirmLabel="Move here"
-      />
-
-      <FolderPickerModal
-        visible={picker === "move-save"}
-        title="Move save to"
-        folders={folders}
-        allowUncategorized
-        selectedId={saveSheet?.folder_id ?? null}
-        onClose={() => setPicker(null)}
-        onSelect={(id) => {
-          if (saveSheet) void patchSave(saveSheet.id, { folder_id: id });
+      <CategoryPicker
+        visible={categoryPicker}
+        selected={saveSheet?.category ?? "other"}
+        onPick={(key) => void moveToCategory(key)}
+        onClose={() => {
+          setCategoryPicker(false);
+          setSaveSheet(null);
         }}
-        onFoldersChange={setFolders}
-        confirmLabel="Move here"
+      />
+
+      <TextPromptModal
+        visible={renaming}
+        title={`Rename "${heading}"`}
+        initialValue={heading}
+        busy={busy}
+        onCancel={() => setRenaming(false)}
+        onSubmit={(label) => void renameCurrent(label)}
       />
 
       <ReminderPickerModal
@@ -633,7 +460,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  navActions: { flexDirection: "row", gap: 8, alignItems: "center" },
   pill: {
     minHeight: 40,
     paddingHorizontal: 14,
@@ -653,7 +479,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.9,
     color: colors.ink,
   },
-  path: { fontFamily: handFont, fontSize: 18, color: colors.orangeDeep, marginBottom: 8 },
   error: { color: colors.danger, marginBottom: 8 },
   scroll: { paddingBottom: 120 },
   folderRow: {
@@ -674,6 +499,7 @@ const styles = StyleSheet.create({
   },
   folderCount: { fontFamily: handFont, fontSize: 20, color: colors.orangeDeep },
   folderMeta: { fontSize: 18, color: colors.faint },
+  folderEmpty: { color: colors.faint },
   section: { fontSize: 12, fontWeight: "600", letterSpacing: 1, color: colors.muted },
   sectionGap: { marginTop: 26, marginBottom: 12 },
   empty: { fontSize: 15, lineHeight: 22, fontWeight: "300", color: colors.inkSoft, marginTop: 8 },

@@ -1,4 +1,3 @@
-import * as Linking from "expo-linking";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,6 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { PostViewer } from "./components/PostViewer";
 import { confirmDestructive } from "./confirm";
 import { fetchJournal, letGo } from "./lifecycle";
 import { displayTitle } from "./text";
@@ -20,6 +20,7 @@ export function JournalScreen() {
   const [items, setItems] = useState<Save[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Save | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +52,7 @@ export function JournalScreen() {
   }
 
   return (
+    <>
     <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scroll}
@@ -92,9 +94,9 @@ export function JournalScreen() {
             {s.source_url ? (
               <Pressable
                 style={styles.pill}
-                onPress={() => void Linking.openURL(s.source_url!)}
+                onPress={() => setViewing(s)}
               >
-                <Text style={styles.pillText}>Open original</Text>
+                <Text style={styles.pillText}>View post</Text>
               </Pressable>
             ) : null}
             <Pressable style={styles.ghost} onPress={() => release(s)}>
@@ -104,6 +106,8 @@ export function JournalScreen() {
         </View>
       ))}
     </ScrollView>
+    <PostViewer save={viewing} onClose={() => setViewing(null)} />
+    </>
   );
 }
 

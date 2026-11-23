@@ -25,7 +25,7 @@ export function WelcomeScreen({ onStart }: Props) {
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.wordmark} accessibilityRole="header">
-          ATTENTION{"\n"}SPAN
+          INTENT
         </Text>
         <Text style={styles.tagline}>less scrolling. more doing.</Text>
       </View>
@@ -74,11 +74,11 @@ export function WelcomeScreen({ onStart }: Props) {
 const STEPS = [
   {
     title: "Save without leaving the scroll",
-    body: "Share a post to Attention Span. It saves in one tap and drops you back where you were.",
+    body: "Share a post to Intent. It saves in one tap and drops you back where you were.",
   },
   {
     title: "Every save gets 7 days",
-    body: "It goes from fresh, to dripping, to a puddle on its last day. Untouched saves are gone for good when time's up.",
+    body: "It goes from fresh, to dripping, to its last day. Untouched saves are gone for good when time's up.",
   },
   {
     title: "Decide what it's worth",

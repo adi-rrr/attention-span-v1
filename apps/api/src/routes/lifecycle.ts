@@ -137,19 +137,30 @@ export const lifecycleRoutes: FastifyPluginAsync = async (app) => {
   /** What's behind a Mirror count: saves decided this month as done or planned. */
   app.get("/outcomes", async (req) => {
     const userId = requireUserId(req);
-    const { kind, tz } = z
-      .object({ kind: z.enum(["done", "planned"]), tz: z.string().optional() })
+    const { kind, tz, day } = z
+      .object({
+        kind: z.enum(["done", "planned", "distilled"]),
+        tz: z.string().optional(),
+        // One calendar day (a tapped Mirror day) instead of the whole month.
+        day: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      })
       .parse(req.query);
     const zone = safeTimezone(tz);
+    const when = day
+      ? `(decided_at AT TIME ZONE $3)::date = $4::date`
+      : `decided_at >= (date_trunc('month', now() AT TIME ZONE $3) AT TIME ZONE $3)`;
     const { rows } = await query(
       `SELECT id, platform, source_url, title, short_title, plan_text, plan_at,
-              folder_path, decided_at
+              takeaway, folder_path, decided_at
        FROM saves
        WHERE user_id = $1 AND deleted_at IS NULL AND status = $2::save_status
-         AND decided_at >= (date_trunc('month', now() AT TIME ZONE $3) AT TIME ZONE $3)
+         AND ${when}
        ORDER BY ${kind === "planned" ? "plan_at ASC NULLS LAST" : "decided_at DESC"}
        LIMIT 200`,
-      [userId, kind, zone],
+      day ? [userId, kind, zone, day] : [userId, kind, zone],
     );
     return { items: rows };
   });

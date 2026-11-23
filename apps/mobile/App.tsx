@@ -4,6 +4,7 @@ import * as Linking from "expo-linking";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
+  Image,
   Pressable,
   StyleSheet,
   View,
@@ -76,13 +77,22 @@ export default function App() {
   );
 }
 
+/** How long the Intent logo stays up when the app starts. */
+const INTRO_MS = 1500;
+
 function AppScreens() {
   const [fontsLoaded] = useFonts(fontAssets);
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setIntroDone(true), INTRO_MS);
+    return () => clearTimeout(t);
+  }, []);
   const [tab, setTabState] = useState<Tab>("inbox");
-  // A Mirror count opened as a list ("what you did / planned").
-  const [outcomeKind, setOutcomeKind] = useState<OutcomeKind | null>(null);
+  // A Mirror count opened as a list ("what you did / planned"), for the month
+  // or for one tapped calendar day.
+  const [outcome, setOutcome] = useState<{ kind: OutcomeKind; day?: string } | null>(null);
   const setTab = useCallback((next: Tab) => {
-    setOutcomeKind(null);
+    setOutcome(null);
     setTabState(next);
   }, []);
   const [inbox, setInbox] = useState<Save[]>([]);
@@ -218,12 +228,20 @@ function AppScreens() {
     };
   }, [refresh]);
 
-  if (!fontsLoaded) {
-    return <View style={styles.safe} />;
-  }
-
-  if (signedIn === null) {
-    return <View style={styles.safe} />;
+  // The Intent logo shows for at least 1.5 s on launch, and longer only if
+  // fonts or the saved session are still loading.
+  if (!introDone || !fontsLoaded || signedIn === null) {
+    return (
+      <View style={styles.intro}>
+        <Image
+          source={require("./assets/splash-icon.png")}
+          style={styles.introLogo}
+          resizeMode="contain"
+          accessibilityLabel="Intent"
+        />
+        <StatusBar style="dark" />
+      </View>
+    );
   }
 
   if (!signedIn) {
@@ -317,18 +335,20 @@ function AppScreens() {
         ) : null}
         {tab === "library" ? <LibraryScreen onOpenSave={setDetailSaveId} /> : null}
         {tab === "journal" ? <JournalScreen /> : null}
-        {tab === "mirror" && outcomeKind ? (
+        {tab === "mirror" && outcome ? (
           <OutcomeListScreen
-            kind={outcomeKind}
-            onBack={() => setOutcomeKind(null)}
+            kind={outcome.kind}
+            day={outcome.day}
+            onBack={() => setOutcome(null)}
             onOpenSave={setDetailSaveId}
           />
         ) : null}
-        {tab === "mirror" && !outcomeKind ? (
+        {tab === "mirror" && !outcome ? (
           <MirrorScreen
             onOpenStat={(stat) =>
-              stat === "distilled" ? setTab("journal") : setOutcomeKind(stat)
+              stat === "distilled" ? setTab("journal") : setOutcome({ kind: stat })
             }
+            onOpenDay={(kind, day) => setOutcome({ kind, day })}
             onSort={() => (inbox.length > 0 ? setDecideFrom(0) : setTab("inbox"))}
             onViewReminders={() => setTab("library")}
             onOpenSave={setDetailSaveId}
@@ -377,6 +397,17 @@ function AppScreens() {
 }
 
 const styles = StyleSheet.create({
+  // Matches the white background of the app icon.
+  intro: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Same size as the native launch screen (expo-splash-screen imageWidth in
+  // app.json), so the hand-off from the phone's screen to ours doesn't jump.
+  // splash-icon.png is 1962 × 989.
+  introLogo: { width: 240, height: Math.round((240 * 989) / 1962) },
   safe: {
     flex: 1,
     backgroundColor: colors.bg,

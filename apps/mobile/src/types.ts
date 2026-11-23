@@ -24,7 +24,6 @@ export type Save = {
   has_reminder?: boolean;
   reminder_fire_at?: string | null;
   expires_at?: string | null;
-  ai_intent?: Intent | null;
   /** Fixed key that drives expiry; the user sees their own label for it. */
   category?: CategoryKey | null;
   /** 'ai' = suggested, 'user' = picked or confirmed while sorting. */
@@ -32,7 +31,6 @@ export type Save = {
   event_at?: string | null;
   place_name?: string | null;
   place_country?: string | null;
-  ai_reason?: string | null;
   plan_text?: string | null;
   plan_at?: string | null;
   takeaway?: string | null;
@@ -56,8 +54,6 @@ export type Reminder = {
 export type SaveDetail = Save & {
   reminder?: Reminder | null;
 };
-
-export type Intent = "try" | "go" | "buy" | "learn" | "inspo" | "other";
 
 export type CategoryKey =
   | "place"
@@ -87,7 +83,18 @@ export type InboxSummary = {
   sort_minutes: number;
 };
 
-export type MirrorDay = { day: string; acted: boolean; faded: boolean };
+export type MirrorDay = {
+  day: string;
+  acted: boolean;
+  faded: boolean;
+  /** How many of each happened that day. */
+  saved: number;
+  done: number;
+  planned: number;
+  distilled: number;
+  let_go: number;
+  faded_n: number;
+};
 
 export type Mirror = {
   timezone: string;

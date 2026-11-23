@@ -66,6 +66,13 @@ export function fetchCategories() {
   return api<{ items: Category[] }>("/categories");
 }
 
+/** Saves per category for the given statuses; saves with none count as "other". */
+export function fetchCategoryCounts(statuses: string) {
+  return api<{ counts: Partial<Record<CategoryKey, number>> }>(
+    `/categories/counts?status=${statuses}`,
+  );
+}
+
 /** An empty label resets the category to its default name. */
 export function renameCategory(key: CategoryKey, label: string) {
   return api<{ items: Category[] }>(`/categories/${key}`, {
@@ -129,11 +136,15 @@ export function fadeOpacity(fraction: number) {
   return 0.45 + 0.55 * fraction;
 }
 
-export type OutcomeKind = "done" | "planned";
+export type OutcomeKind = "done" | "planned" | "distilled";
 
-/** The saves behind a Mirror count: decided this month as done or planned. */
-export function fetchOutcomes(kind: OutcomeKind, timezone: string) {
+/**
+ * The saves behind a Mirror count: decided this month with that outcome, or
+ * on one day ("YYYY-MM-DD") when a calendar day was tapped.
+ */
+export function fetchOutcomes(kind: OutcomeKind, timezone: string, day?: string) {
+  const dayParam = day ? `&day=${day}` : "";
   return api<{ items: Save[] }>(
-    `/outcomes?kind=${kind}&tz=${encodeURIComponent(timezone)}`,
+    `/outcomes?kind=${kind}&tz=${encodeURIComponent(timezone)}${dayParam}`,
   );
 }
