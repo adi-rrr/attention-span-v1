@@ -95,6 +95,8 @@ const PLATFORM_LABEL: Record<string, string> = {
   reddit: "Reddit",
   substack: "Substack",
   screenshot: "Screenshot",
+  pinterest: "Pinterest",
+  link: "Web",
 };
 
 /** "Instagram" — the small line above a save's title. */

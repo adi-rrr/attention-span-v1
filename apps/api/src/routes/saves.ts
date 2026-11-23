@@ -8,6 +8,7 @@ import { cancelReminder } from "../services/reminders.js";
 import { getLifecycleSettings, logSaveEvent } from "../services/lifecycle.js";
 import { aiShortTitle, quickShortTitle } from "../services/titles.js";
 import { categorizeSave } from "../services/categories.js";
+import { readScreenshot } from "../services/screenshots.js";
 
 const SAVE_LIST_FIELDS = `id, platform, status, source_url, title, short_title, user_note,
               folder_id, folder_path, content_kind, offline_policy,
@@ -39,11 +40,26 @@ const createSaveBody = z.object({
     "substack",
     "youtube",
     "screenshot",
+    "pinterest",
+    "link",
   ]),
   source_url: z.string().url().nullable().optional(),
   title: z.string().optional(),
   replace_existing: z.boolean().optional().default(false),
+  /**
+   * "web": the web app, which saves any link except Reddit. Phone shares
+   * leave it out and stay Instagram-only.
+   */
+  client: z.enum(["web"]).optional(),
 });
+
+const uploadBody = z.object({
+  /** The screenshot as a data: URL (PNG, JPEG or WebP), already resized. */
+  image: z.string().regex(/^data:image\/(png|jpeg|webp);base64,/),
+});
+
+/** Largest decoded upload we accept (the web app resizes well below this). */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 const patchSaveBody = z.object({
   user_note: z.string().nullable().optional(),
@@ -52,13 +68,61 @@ const patchSaveBody = z.object({
   status: z.enum(["done", "archived"]).optional(),
 });
 
-/** Instagram only for now: other links are turned away with a clear message. */
-function isInstagramUrl(url: string): boolean {
+function hostOf(url: string): string {
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    return host === "instagram.com" || host.endsWith(".instagram.com") || host === "instagr.am";
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
   } catch {
-    return false;
+    return "";
+  }
+}
+
+function hostIs(url: string, ...domains: string[]): boolean {
+  const host = hostOf(url);
+  return domains.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
+/** Phone shares: Instagram only for now; other links get a clear message. */
+function isInstagramUrl(url: string): boolean {
+  return hostIs(url, "instagram.com", "instagr.am");
+}
+
+/** Which platform a link belongs to; anything unknown is a plain "link". */
+function platformOf(url: string) {
+  if (isInstagramUrl(url)) return "instagram" as const;
+  if (hostIs(url, "youtube.com", "youtu.be")) return "youtube" as const;
+  if (hostIs(url, "pinterest.com", "pin.it") || /(^|\.)pinterest\.[a-z.]+$/.test(hostOf(url))) {
+    return "pinterest" as const;
+  }
+  if (hostIs(url, "substack.com")) return "substack" as const;
+  if (hostIs(url, "reddit.com", "redd.it")) return "reddit" as const;
+  return "link" as const;
+}
+
+/** Tracking parameters that differ per share but not per page. */
+const TRACKING_PARAM = /^(utm_\w+|fbclid|gclid|igsh|igshid|si|feature|ref|ref_src)$/i;
+
+/**
+ * Any non-Instagram link without tracking parameters or #fragment. YouTube
+ * links (watch, youtu.be, shorts, with or without www) become one form.
+ */
+function canonicalLink(url: string): string {
+  try {
+    const u = new URL(url);
+    if (hostIs(url, "youtube.com", "youtu.be")) {
+      const shorts = u.pathname.match(/^\/shorts\/([\w-]{6,})/)?.[1];
+      if (shorts) return `https://www.youtube.com/shorts/${shorts}`;
+      const id = hostIs(url, "youtu.be")
+        ? u.pathname.slice(1).split("/")[0]
+        : u.searchParams.get("v");
+      if (id) return `https://www.youtube.com/watch?v=${id}`;
+    }
+    for (const key of [...u.searchParams.keys()]) {
+      if (TRACKING_PARAM.test(key)) u.searchParams.delete(key);
+    }
+    u.hash = "";
+    return u.toString();
+  } catch {
+    return url;
   }
 }
 
@@ -136,7 +200,16 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     const userId = requireUserId(req);
     const body = createSaveBody.parse(req.body);
 
-    if (body.source_url && !isInstagramUrl(body.source_url)) {
+    if (body.source_url && body.client === "web") {
+      // The web app saves any link except Reddit, filed under its own platform.
+      body.platform = platformOf(body.source_url);
+      if (body.platform === "reddit") {
+        return reply.code(422).send({
+          error: "Reddit links can't be saved.",
+          code: "NOT_SUPPORTED",
+        });
+      }
+    } else if (body.source_url && !isInstagramUrl(body.source_url)) {
       return reply.code(422).send({
         error: "Only Instagram posts can be saved for now.",
         code: "NOT_INSTAGRAM",
@@ -144,7 +217,9 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (body.source_url) {
-      const canonical = canonicalInstagram(body.source_url);
+      const canonical = isInstagramUrl(body.source_url)
+        ? canonicalInstagram(body.source_url)
+        : { code: null, url: canonicalLink(body.source_url) };
       body.source_url = canonical.url;
       // Match by the post's shortcode so older saves, stored with their
       // tracking codes, still count as the same post.
@@ -221,6 +296,55 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     void categorizeSave(userId, id);
 
     return reply.code(201).send(rows[0]);
+  });
+
+  /**
+   * Web app: save an uploaded screenshot. The AI reads it (text, a one-line
+   * title, what it shows); that text becomes the save's title, so search,
+   * categories and expiry work exactly as for a shared link.
+   */
+  app.post("/saves/upload", { bodyLimit: 6 * 1024 * 1024 }, async (req, reply) => {
+    const userId = requireUserId(req);
+    const { image } = uploadBody.parse(req.body);
+    const mime = image.slice(5, image.indexOf(";"));
+    const data = Buffer.from(image.slice(image.indexOf(",") + 1), "base64");
+    if (data.length === 0 || data.length > MAX_IMAGE_BYTES) {
+      throw httpError(413, "That image is too large. Try a smaller screenshot.");
+    }
+
+    const read = await readScreenshot(image);
+    const fallback = `Screenshot · ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+    const title = [read.summary, read.text].filter(Boolean).join("\n").slice(0, 2000) || fallback;
+    const shortTitle = read.title || fallback;
+
+    const { lifespanDays } = await getLifecycleSettings(userId);
+    const { rows } = await query(
+      `INSERT INTO saves (
+         user_id, platform, source_url, title, status, expires_at,
+         short_title, title_source
+       ) VALUES ($1, 'screenshot', NULL, $2, 'inbox', now() + make_interval(days => $3),
+                 $4, $5)
+       RETURNING id, platform, status, source_url, title, short_title,
+                 user_note, folder_id, folder_path, content_kind, offline_policy,
+                 expires_at, created_at, updated_at`,
+      [userId, title, lifespanDays, shortTitle, read.title ? "ai" : "quick"],
+    );
+    const save = rows[0] as { id: string };
+    await query(
+      `INSERT INTO save_images (save_id, user_id, mime, data, extracted_text)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [save.id, userId, mime, data, read.text],
+    );
+    await logSaveEvent(userId, "saved", "screenshot");
+    // Waited for here (the user is already waiting on the AI read), so the
+    // reply carries the real expiry: places don't fade, events go after the day.
+    await categorizeSave(userId, save.id);
+    const { rows: after } = await query<{ expires_at: string | null; category: string | null }>(
+      `SELECT expires_at, category FROM saves WHERE id = $1`,
+      [save.id],
+    );
+
+    return reply.code(201).send({ ...save, ...after[0] });
   });
 
   app.get("/saves/:id", async (req) => {

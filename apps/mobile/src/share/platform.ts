@@ -3,7 +3,9 @@ export type SavePlatform =
   | "reddit"
   | "substack"
   | "youtube"
-  | "screenshot";
+  | "screenshot"
+  | "pinterest"
+  | "link";
 
 const URL_IN_TEXT =
   /https?:\/\/[^\s<>"{}|\\^`[\]]+/i;
@@ -22,8 +24,9 @@ export function detectPlatform(url: string): SavePlatform {
   if (u.includes("reddit.com") || u.includes("redd.it")) return "reddit";
   if (u.includes("substack.com")) return "substack";
   if (u.includes("youtube.com") || u.includes("youtu.be")) return "youtube";
-  // Unknown link — still save; preview may fill title via OG
-  return "youtube";
+  if (u.includes("pinterest.") || u.includes("pin.it")) return "pinterest";
+  // Any other page: the server reads its title.
+  return "link";
 }
 
 export type SharePayload = {

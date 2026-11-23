@@ -8,6 +8,8 @@ export type CreateSaveInput = {
   platform: SavePlatform;
   source_url?: string | null;
   title?: string;
+  /** "web": the web app, which may save any link except Reddit. */
+  client?: "web";
 };
 
 const SAVE_TIMEOUT_MS = 15000;
@@ -20,6 +22,23 @@ export async function createSave(input: CreateSaveInput): Promise<Save> {
     return await api<Save>("/saves", {
       method: "POST",
       body: JSON.stringify(input),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const UPLOAD_TIMEOUT_MS = 45000;
+
+/** Web app: save a screenshot (a data: URL); the server reads it with AI. */
+export async function uploadScreenshot(image: string): Promise<Save> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  try {
+    return await api<Save>("/saves/upload", {
+      method: "POST",
+      body: JSON.stringify({ image }),
       signal: controller.signal,
     });
   } finally {

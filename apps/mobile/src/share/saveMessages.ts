@@ -48,6 +48,9 @@ export function failedMessage(err: unknown): SaveOutcome {
         message: "Not saved: only Instagram posts for now. More apps are coming.",
       };
     }
+    if (body.code === "NOT_SUPPORTED") {
+      return { ok: false, message: "Not saved: Reddit links can't be saved." };
+    }
     if (body.code === "NOT_INVITED") {
       return {
         ok: false,

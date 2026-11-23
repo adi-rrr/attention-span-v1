@@ -12,7 +12,13 @@ export function llmError(
 export async function openAiChatJson(
   system: string,
   userPrompt: string,
-  opts: { temperature?: number; timeoutMs?: number; label?: string } = {},
+  opts: {
+    temperature?: number;
+    timeoutMs?: number;
+    label?: string;
+    /** A data: URL image the model should look at alongside the prompt. */
+    imageDataUrl?: string;
+  } = {},
 ): Promise<string> {
   const label = opts.label ?? "llm";
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -39,7 +45,15 @@ export async function openAiChatJson(
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
-          { role: "user", content: userPrompt },
+          {
+            role: "user",
+            content: opts.imageDataUrl
+              ? [
+                  { type: "text", text: userPrompt },
+                  { type: "image_url", image_url: { url: opts.imageDataUrl } },
+                ]
+              : userPrompt,
+          },
         ],
       }),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 20000),
