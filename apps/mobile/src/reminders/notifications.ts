@@ -51,7 +51,7 @@ export async function scheduleLocalReminder(input: {
   await Notifications.scheduleNotificationAsync({
     identifier: identifierFor(input.saveId),
     content: {
-      title: input.title || "Attention Span",
+      title: input.title || "Intent",
       body: input.body?.trim() || "You wanted to come back to this.",
       data: { saveId: input.saveId },
       sound: true,

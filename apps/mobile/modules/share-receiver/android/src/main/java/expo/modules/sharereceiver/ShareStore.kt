@@ -62,11 +62,11 @@ object ShareToast {
     }
   }
 
-  const val SIGN_IN = "Not saved: open Attention Span and sign in, then share again."
+  const val SIGN_IN = "Not saved: open Intent and sign in, then share again."
   const val NOTHING = "Not saved: there was no link or text to save. Share the post itself."
   const val OFFLINE = "No internet. It'll save on its own once you're back online."
   const val BAD_LINK = "Not saved: we couldn't read that link. Try sharing the post link."
   const val ONLY_INSTAGRAM = "Not saved: only Instagram posts for now. More apps are coming."
-  const val SERVER = "Not saved: Attention Span had a hiccup. Share again in a moment."
-  const val GAVE_UP = "Not saved: couldn't reach Attention Span for a while. Share it again."
+  const val SERVER = "Not saved: Intent had a hiccup. Share again in a moment."
+  const val GAVE_UP = "Not saved: couldn't reach Intent for a while. Share it again."
 }

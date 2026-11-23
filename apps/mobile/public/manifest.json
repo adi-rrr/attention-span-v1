@@ -1,6 +1,6 @@
 {
-  "name": "Attention Span",
-  "short_name": "Attention Span",
+  "name": "Intent",
+  "short_name": "Intent",
   "description": "Save it with a reason. Get it back right on time.",
   "id": "/",
   "start_url": "/",

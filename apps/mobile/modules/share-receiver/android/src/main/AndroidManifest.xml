@@ -7,7 +7,7 @@
     -->
     <activity
       android:name="expo.modules.sharereceiver.ShareReceiverActivity"
-      android:label="Attention Span"
+      android:label="Intent"
       android:exported="true"
       android:excludeFromRecents="true"
       android:noHistory="true"

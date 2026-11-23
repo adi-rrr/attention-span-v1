@@ -15,7 +15,7 @@ import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 
 /**
- * The "Attention Span" entry in the share sheet. It has no UI: it queues a
+ * The "Intent" entry in the share sheet. It has no UI: it queues a
  * background save and finishes in the same frame, so the user stays in the
  * app they were scrolling.
  */

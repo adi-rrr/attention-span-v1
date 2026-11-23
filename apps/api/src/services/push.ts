@@ -105,7 +105,7 @@ export async function fireReminder(reminderId: string): Promise<number> {
   if (!reminder) return 0;
 
   const payload = JSON.stringify({
-    title: reminder.title || reminder.source_url || "Attention Span",
+    title: reminder.title || reminder.source_url || "Intent",
     body: "You wanted to come back to this.",
     saveId: reminder.save_id,
   });

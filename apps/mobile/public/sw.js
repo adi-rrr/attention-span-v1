@@ -1,4 +1,4 @@
-// Attention Span service worker: shows reminder pushes and opens the save on tap.
+// Intent service worker: shows reminder pushes and opens the save on tap.
 // It deliberately does not cache pages, so every launch gets the latest deploy.
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -14,7 +14,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Attention Span";
+  const title = data.title || "Intent";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "You wanted to come back to this.",

@@ -22,7 +22,7 @@ const COPY: Record<AuthMode, { title: string; sub: string; fine: string }> = {
   signup: {
     title: "Sign up",
     sub: "Use the email your invite went to. We'll send a 6-digit code to set up your account.",
-    fine: "Attention Span is invite-only for now. No invite yet? Ask the person who shared it with you.",
+    fine: "Intent is invite-only for now. No invite yet? Ask the person who shared it with you.",
   },
 };
 
@@ -82,7 +82,7 @@ export function SignInScreen({ initialMode = "login", onBack }: Props) {
             <Text style={styles.backText}>←</Text>
           </Pressable>
         ) : null}
-        <Text style={styles.brand}>attention span</Text>
+        <Text style={styles.brand}>intent</Text>
       </View>
 
       {step === "email" ? (

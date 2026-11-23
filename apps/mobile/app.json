@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Attention Span",
+    "name": "Intent",
     "slug": "attention-span",
     "scheme": "attentionspan",
     "version": "1.0.0",
@@ -14,7 +14,7 @@
     "android": {
       "package": "com.attentionspan.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -42,13 +42,22 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#1A1714",
+          "icon": "./assets/notification-icon.png",
+          "color": "#1B2A4A",
           "defaultChannel": "reminders"
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
     ]
   }
 }

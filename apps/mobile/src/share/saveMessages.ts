@@ -39,7 +39,7 @@ export function failedMessage(err: unknown): SaveOutcome {
     if (body.code === "AUTH_REQUIRED") {
       return {
         ok: false,
-        message: "Not saved: open Attention Span and sign in, then share again.",
+        message: "Not saved: open Intent and sign in, then share again.",
       };
     }
     if (body.code === "NOT_INSTAGRAM") {
@@ -51,7 +51,7 @@ export function failedMessage(err: unknown): SaveOutcome {
     if (body.code === "NOT_INVITED") {
       return {
         ok: false,
-        message: "Not saved: this account hasn't been invited to Attention Span yet.",
+        message: "Not saved: this account hasn't been invited to Intent yet.",
       };
     }
     if (err.status === 400) {
@@ -63,7 +63,7 @@ export function failedMessage(err: unknown): SaveOutcome {
     if (err.status >= 500) {
       return {
         ok: false,
-        message: "Not saved: Attention Span had a hiccup. Share again in a moment.",
+        message: "Not saved: Intent had a hiccup. Share again in a moment.",
       };
     }
     return { ok: false, message: `Not saved (error ${err.status}). Share again.` };
@@ -73,7 +73,7 @@ export function failedMessage(err: unknown): SaveOutcome {
   }
   return {
     ok: false,
-    message: "Not saved: couldn't reach Attention Span. Check your internet and share again.",
+    message: "Not saved: couldn't reach Intent. Check your internet and share again.",
   };
 }
 

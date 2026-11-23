@@ -146,7 +146,7 @@ async function shareKeyUser(req: FastifyRequest): Promise<string | null> {
   }
   const userId = await userIdForShareKey(key);
   if (!userId) {
-    throw authError(401, "SHARE_KEY_INVALID", "Sign in to Attention Span again to keep sharing.");
+    throw authError(401, "SHARE_KEY_INVALID", "Sign in to Intent again to keep sharing.");
   }
   return userId;
 }
