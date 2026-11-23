@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { AddLink } from "./components/AddLink";
-import { PostViewer } from "./components/PostViewer";
+import { PostViewer, canViewPost } from "./components/PostViewer";
 import { StageGuide } from "./components/StageGuide";
 import { Ember, LifeDots, MeltWord, daysLeftOf } from "./doodles";
 import { platformLabel } from "./lifecycle";
@@ -104,7 +104,7 @@ export function InboxScreen({ items, summary, loading, onRefresh, onDecide }: Pr
           <Text style={[styles.left, urgent && styles.leftUrgent]}>
             {timeLeft(save.expires_at)}
           </Text>
-          {save.source_url ? (
+          {canViewPost(save) ? (
             <Pressable
               hitSlop={8}
               onPress={() => setViewing(save)}

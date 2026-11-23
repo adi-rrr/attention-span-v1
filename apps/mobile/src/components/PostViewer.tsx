@@ -19,6 +19,11 @@ type Props = {
   onClose: () => void;
 };
 
+/** Whether a save has something to view: on the phone, only saves with a link. */
+export function canViewPost(save: Pick<Save, "source_url" | "platform">): boolean {
+  return Boolean(save.source_url);
+}
+
 /** Instagram's own embed page for a post or reel, or null if the link isn't one. */
 export function instagramEmbedUrl(url: string | null | undefined): string | null {
   const code = url?.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)?.[1];

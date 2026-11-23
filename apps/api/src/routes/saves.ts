@@ -298,6 +298,23 @@ export const savesRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send(rows[0]);
   });
 
+  /** The uploaded screenshot behind a save, for the web app's View post. */
+  app.get("/saves/:id/image", async (req, reply) => {
+    const userId = requireUserId(req);
+    const { id } = req.params as { id: string };
+    const { rows } = await query<{ mime: string; data: Buffer }>(
+      `SELECT i.mime, i.data FROM save_images i
+       JOIN saves s ON s.id = i.save_id AND s.deleted_at IS NULL
+       WHERE i.save_id = $1 AND i.user_id = $2`,
+      [id, userId],
+    );
+    if (!rows[0]) throw httpError(404, "No image for this save");
+    return reply
+      .type(rows[0].mime)
+      .header("Cache-Control", "private, max-age=86400")
+      .send(rows[0].data);
+  });
+
   /**
    * Web app: save an uploaded screenshot. The AI reads it (text, a one-line
    * title, what it shows); that text becomes the save's title, so search,

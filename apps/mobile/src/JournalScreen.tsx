@@ -7,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { PostViewer } from "./components/PostViewer";
+import { PostViewer, canViewPost } from "./components/PostViewer";
 import { confirmDestructive } from "./confirm";
 import { fetchJournal, letGo } from "./lifecycle";
 import { displayTitle } from "./text";
@@ -91,7 +91,7 @@ export function JournalScreen() {
             </View>
           ) : null}
           <View style={styles.actions}>
-            {s.source_url ? (
+            {canViewPost(s) ? (
               <Pressable
                 style={styles.pill}
                 onPress={() => setViewing(s)}

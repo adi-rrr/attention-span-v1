@@ -12,7 +12,7 @@ import { confirmDestructive } from "./confirm";
 import { displayTitle } from "./text";
 import { letGo, markDone } from "./lifecycle";
 import { FolderPickerModal } from "./components/FolderPickerModal";
-import { PostViewer } from "./components/PostViewer";
+import { PostViewer, canViewPost } from "./components/PostViewer";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import { formatReminderTime } from "./reminders/format";
 import { cancelLocalReminder } from "./reminders/notifications";
@@ -180,7 +180,7 @@ export function SaveDetailScreen({ saveId, onClose }: Props) {
           </View>
         </View>
 
-        {save.source_url ? (
+        {canViewPost(save) ? (
           <Pressable
             style={styles.linkBtn}
             onPress={() => setViewing(true)}

@@ -7,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { PostViewer } from "./components/PostViewer";
+import { PostViewer, canViewPost } from "./components/PostViewer";
 import { fetchOutcomes, platformLabel, type OutcomeKind } from "./lifecycle";
 import { deviceTimezone, formatReminderTime } from "./reminders/format";
 import { displayTitle } from "./text";
@@ -118,7 +118,7 @@ export function OutcomeListScreen({ kind, day, onBack, onOpenSave }: Props) {
                 <Text style={styles.planText}>“{s.takeaway}”</Text>
               </View>
             ) : null}
-            {s.source_url ? (
+            {canViewPost(s) ? (
               <Pressable
                 style={styles.openBtn}
                 onPress={() => setViewing(s)}

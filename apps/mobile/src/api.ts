@@ -30,21 +30,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Who's asking: the sign-in token, or the dev user id when sign-in is off. */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!authEnabled) return { "x-user-id": DEV_USER_ID };
+  const token = await getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function api<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
   const hasBody = init.body != null && init.body !== "";
-  const token = authEnabled ? await getAccessToken() : null;
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...(authEnabled
-        ? token
-          ? { Authorization: `Bearer ${token}` }
-          : {}
-        : { "x-user-id": DEV_USER_ID }),
+      ...(await authHeaders()),
       ...(init.headers ?? {}),
     },
   });
@@ -65,4 +67,14 @@ export async function api<T>(
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/** A binary response (an uploaded screenshot) as a Blob, with the same sign-in. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${API_URL}${path}`, { headers: await authHeaders() });
+  if (!res.ok) {
+    if (res.status === 401 && authEnabled) notifySignInRequired();
+    throw new ApiError(res.status, path, await res.text().catch(() => ""));
+  }
+  return res.blob();
 }

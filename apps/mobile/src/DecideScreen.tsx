@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { labelOf, useCategories } from "./categories";
 import { CategoryPicker } from "./components/CategoryPicker";
-import { PostViewer } from "./components/PostViewer";
+import { PostViewer, canViewPost } from "./components/PostViewer";
 import { ReminderPickerModal } from "./components/ReminderPickerModal";
 import {
   draftPlan,
@@ -401,7 +401,7 @@ export function DecideScreen({ items, startIndex, lifespanDays, onClose }: Props
             </View>
             <View style={styles.cardFoot}>
               <Text style={[styles.fade, life.urgent && styles.fadeUrgent]}>{life.label}</Text>
-              {save.source_url ? (
+              {canViewPost(save) ? (
                 <Pressable
                   style={styles.openBtn}
                   onPress={() => setViewing(save)}
